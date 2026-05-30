@@ -471,9 +471,27 @@ input[type=file]{display:none}
     <div class="card">
       <div id="team-list"><div style="color:var(--text-muted);font-size:13px">Loading...</div></div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-border)">
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Change User Role</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">First create the user in your Supabase dashboard (Authentication → Users → Add user), then use the dropdowns above to set their role. New users default to Viewer.</div>
-        <button class="btn btn-secondary btn-sm" onclick="loadTeamMembers()">↻ Refresh Team List</button>
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px">Invite New Member</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:180px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Email address</div>
+            <input id="invite-email" type="email" placeholder="colleague@example.com" style="width:100%;padding:8px 10px;border:1px solid var(--gray-border);border-radius:6px;font-size:13px;box-sizing:border-box">
+          </div>
+          <div style="min-width:120px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Role</div>
+            <select id="invite-role" style="width:100%;padding:8px 10px;border:1px solid var(--gray-border);border-radius:6px;font-size:13px">
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="inviteUser()" style="white-space:nowrap;padding:8px 16px">Send Invite</button>
+        </div>
+        <div id="invite-status" style="margin-top:8px;font-size:12px;display:none"></div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:8px">The person will receive an email with a link to set their password and log in.</div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border)">
+          <button class="btn btn-secondary btn-sm" onclick="loadTeamMembers()">↻ Refresh Team List</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1926,10 +1944,10 @@ async function loadTeamMembers(){
   const roleColor={admin:'var(--green)',editor:'var(--blue)',viewer:'var(--gray)'};
   el.innerHTML=members.map(m=>`
     <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-border)">
-      <div style="width:32px;height:32px;border-radius:50%;background:${roleColor[m.role]||'var(--gray)'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">${(m.full_name||m.email||'?')[0].toUpperCase()}</div>
+      <div style="width:32px;height:32px;border-radius:50%;background:${roleColor[m.role]||'var(--gray)'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">${(m.email||'?')[0].toUpperCase()}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.full_name||m.email}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${m.email}</div>
+        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.email}</div>
+        ${m.full_name?`<div style="font-size:11px;color:var(--text-muted)">${m.full_name}</div>`:''}
       </div>
       <select onchange="updateUserRole('${m.id}',this.value)" style="padding:5px 8px;border:1px solid var(--gray-border);border-radius:6px;font-size:12px" ${m.id===currentUser?.id?'disabled title="Cannot change your own role"':''}>
         <option value="viewer" ${m.role==='viewer'?'selected':''}>Viewer</option>
@@ -1944,6 +1962,39 @@ async function updateUserRole(userId,newRole){
   const{error}=await sb.from('user_profiles').update({role:newRole}).eq('id',userId);
   if(error){showToast('Error updating role — try again');console.error(error);return;}
   showToast(`Role updated to ${newRole}`);
+  loadTeamMembers();
+}
+
+async function inviteUser(){
+  const emailEl=document.getElementById('invite-email');
+  const roleEl=document.getElementById('invite-role');
+  const statusEl=document.getElementById('invite-status');
+  const email=(emailEl.value||'').trim().toLowerCase();
+  const role=roleEl.value||'viewer';
+  if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    statusEl.style.display='block';statusEl.style.color='var(--red)';
+    statusEl.textContent='Please enter a valid email address.';return;
+  }
+  statusEl.style.display='block';statusEl.style.color='var(--text-muted)';
+  statusEl.textContent='Sending invite…';
+  const tempPassword='Invite@'+Math.random().toString(36).slice(2,10);
+  const{data,error}=await sb.auth.signUp({email,password:tempPassword});
+  if(error){
+    statusEl.style.color='var(--red)';
+    statusEl.textContent='Error: '+error.message;return;
+  }
+  const userId=data?.user?.id;
+  if(userId){
+    await sb.from('user_profiles').upsert({id:userId,email,role},{ onConflict:'id' });
+  } else {
+    const{data:existing}=await sb.from('user_profiles').select('id').eq('email',email).maybeSingle();
+    if(existing) await sb.from('user_profiles').update({role}).eq('email',email);
+    else await sb.from('user_profiles').insert({email,role});
+  }
+  statusEl.style.color='var(--green)';
+  statusEl.textContent=`Invite sent to ${email}. They'll receive an email to set their password.`;
+  emailEl.value='';
+  roleEl.value='viewer';
   loadTeamMembers();
 }
 
