@@ -1803,6 +1803,7 @@ async function doLogin(){
 }
 
 async function doLogout(){
+  onSignOut();
   await sb.auth.signOut();
 }
 
