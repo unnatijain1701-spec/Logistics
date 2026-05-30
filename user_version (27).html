@@ -1,0 +1,2001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Urban Harvest — Route Planner</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#1a7a4a;--green-light:#e8f5ee;--green-mid:#2d9e62;
+  --amber:#d97706;--amber-light:#fef3c7;
+  --red:#dc2626;--red-light:#fee2e2;
+  --blue:#1d4ed8;--blue-light:#dbeafe;
+  --gray:#64748b;--gray-light:#f8fafc;--gray-border:#e2e8f0;
+  --white:#ffffff;--text:#0f172a;--text-muted:#64748b;
+  --radius:8px;--radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,0.1);
+  --shadow-md:0 4px 12px rgba(0,0,0,0.1);
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f1f5f9;color:var(--text);font-size:14px;line-height:1.5}
+/* NAV */
+.nav{background:var(--green);padding:0 24px;display:flex;align-items:center;gap:0;height:56px;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.nav-logo{color:#fff;font-size:16px;font-weight:600;letter-spacing:-0.3px;margin-right:32px;display:flex;align-items:center;gap:8px}
+.nav-logo-icon{width:28px;height:28px;background:rgba(255,255,255,0.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.nav-tabs{display:flex;height:100%}
+.nav-tab{background:none;border:none;color:rgba(255,255,255,0.75);padding:0 16px;height:100%;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;transition:all .15s}
+.nav-tab:hover{color:#fff;background:rgba(255,255,255,0.08)}
+.nav-tab.active{color:#fff;border-bottom:2px solid rgba(255,255,255,0.9)}
+/* LAYOUT */
+.page{display:none;padding:24px;max-width:1400px;margin:0 auto}
+.page.active{display:block}
+/* CARDS */
+.card{background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow)}
+.card-sm{padding:14px 16px}
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed var(--gray-border);border-radius:var(--radius-lg);padding:40px;text-align:center;cursor:pointer;transition:all .2s;background:var(--gray-light)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--green);background:var(--green-light)}
+.upload-icon{font-size:32px;margin-bottom:12px;opacity:.5}
+.upload-title{font-size:15px;font-weight:500;margin-bottom:4px}
+.upload-sub{font-size:12px;color:var(--text-muted)}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:all .15s}
+.btn-primary{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-primary:hover{background:#166039}
+.btn-secondary{background:var(--white);color:var(--text);border-color:var(--gray-border)}
+.btn-secondary:hover{background:var(--gray-light);border-color:#cbd5e1}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-danger{background:var(--red-light);color:var(--red);border-color:#fca5a5}
+.btn-danger:hover{background:#fecaca}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+/* STAT CARDS */
+.stat{background:var(--gray-light);border-radius:var(--radius);padding:14px 16px;border:1px solid var(--gray-border)}
+.stat-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.stat-value{font-size:22px;font-weight:600;color:var(--text)}
+.stat-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+/* SETTINGS */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--gray-border)}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:13px;font-weight:500}
+.setting-sub{font-size:11px;color:var(--text-muted)}
+input[type=number]{width:80px;padding:5px 8px;border:1px solid var(--gray-border);border-radius:var(--radius);font-size:13px;text-align:center}
+input[type=text],input[type=time],select{padding:6px 10px;border:1px solid var(--gray-border);border-radius:var(--radius);font-size:13px;width:100%}
+input[type=file]{display:none}
+/* ROUTE CARDS */
+.routes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:16px}
+.route-card{background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);overflow:hidden;cursor:pointer;transition:all .2s;box-shadow:var(--shadow)}
+.route-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:#94a3b8}
+.route-card-header{padding:14px 16px;border-bottom:1px solid var(--gray-border);display:flex;align-items:center;justify-content:space-between}
+.route-number{font-size:12px;font-weight:600;color:var(--text-muted)}
+.vehicle-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.v-ev450{background:#dcfce7;color:#166534}
+.v-ace{background:#dbeafe;color:#1e40af}
+.v-bolero{background:#fef3c7;color:#92400e}
+.v-tata407{background:#fce7f3;color:#9d174d}
+.v-14ft{background:#f3e8ff;color:#6b21a8}
+.v-outstation{background:#fee2e2;color:#991b1b}
+.route-card-body{padding:14px 16px}
+.route-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.route-meta-item{font-size:12px}
+.route-meta-label{color:var(--text-muted);margin-bottom:1px}
+.route-meta-value{font-weight:500}
+.route-stops-preview{font-size:11px;color:var(--text-muted);border-top:1px solid var(--gray-border);padding-top:8px;margin-top:4px}
+.warning-badge{display:inline-flex;align-items:center;gap:3px;background:#fef9c3;color:#854d0e;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;margin-top:4px}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto}
+.modal-overlay.open{display:flex}
+.modal{background:var(--white);border-radius:var(--radius-lg);width:100%;max-width:900px;box-shadow:0 20px 60px rgba(0,0,0,.2);margin:auto}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--gray-border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:15px;font-weight:600}
+.modal-body{padding:20px}
+.modal-close{background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted);width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px}
+.modal-close:hover{background:var(--gray-light)}
+#route-map{height:320px;border-radius:var(--radius);border:1px solid var(--gray-border);margin:12px 0}
+/* STOP LIST */
+.stop-list{list-style:none}
+.stop-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-border)}
+.stop-item:last-child{border-bottom:none}
+.stop-num{width:22px;height:22px;background:var(--green);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px}
+.stop-name{font-size:13px;font-weight:500;margin-bottom:2px}
+.stop-meta{font-size:11px;color:var(--text-muted);display:flex;gap:10px}
+/* OPS FORM */
+.ops-table{width:100%;border-collapse:collapse}
+.ops-table th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);padding:8px 10px;background:var(--gray-light);border:1px solid var(--gray-border);text-align:left}
+.ops-table td{padding:6px 8px;border:1px solid var(--gray-border);vertical-align:middle}
+.ops-table input{width:100%;border:none;outline:none;font-size:12px;padding:3px 4px;background:transparent}
+.ops-table input:focus{background:#f0fdf4;border-radius:3px}
+/* BADGE */
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600}
+.badge-outstation{background:#fee2e2;color:#991b1b}
+.badge-ncr{background:#dcfce7;color:#166534}
+.badge-conflict{background:#fef9c3;color:#854d0e}
+/* UPLOAD TABLE */
+.preview-table{width:100%;border-collapse:collapse;font-size:12px}
+.preview-table th{background:var(--gray-light);padding:6px 10px;border:1px solid var(--gray-border);text-align:left;font-weight:500}
+.preview-table td{padding:5px 10px;border:1px solid var(--gray-border)}
+.preview-table tr.unmatched{background:#fff7ed}
+.match-ok{color:var(--green);font-weight:600}
+.match-fail{color:var(--red);font-weight:500}
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-title{font-size:16px;font-weight:600}
+/* SCROLLABLE */
+.scroll-x{overflow-x:auto}
+/* TABS (inside page) */
+.inner-tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--gray-border);padding-bottom:0}
+.inner-tab{padding:6px 14px;border:none;background:none;cursor:pointer;font-size:13px;color:var(--text-muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.inner-tab.active{color:var(--green);border-bottom-color:var(--green);font-weight:500}
+/* ALERT */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:8px}
+.alert-warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+.alert-info{background:var(--blue-light);border:1px solid #93c5fd;color:#1e3a8a}
+.alert-success{background:#dcfce7;border:1px solid #86efac;color:#166534}
+/* FILTER BAR */
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.filter-bar select,.filter-bar input{width:auto;flex:none}
+/* COPY TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:10px 16px;border-radius:var(--radius);font-size:12px;z-index:9999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+
+  /* Vehicle-limits toggle switch */
+  .vl-toggle{position:relative;display:inline-block;width:30px;height:17px;vertical-align:middle;margin-right:5px;flex-shrink:0}
+  .vl-toggle input{opacity:0;width:0;height:0;position:absolute}
+  .vl-slider{position:absolute;cursor:pointer;inset:0;background:#d1d5db;border-radius:17px;transition:.2s}
+  .vl-slider:before{position:absolute;content:"";height:11px;width:11px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .vl-toggle input:checked+.vl-slider{background:#22c55e}
+  .vl-toggle input:checked+.vl-slider:before{transform:translateX(13px)}
+  .vl-toggle input:disabled+.vl-slider{opacity:.45;cursor:not-allowed}
+  .vl-inp-wrap{display:flex;align-items:center;gap:4px;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="position:fixed;inset:0;background:#f1f5f9;display:flex;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:#fff;border-radius:14px;padding:40px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.12)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="width:52px;height:52px;background:#1a7a4a;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 12px">🌿</div>
+      <div style="font-size:20px;font-weight:700;color:#0f172a">Urban Harvest</div>
+      <div style="font-size:13px;color:#64748b;margin-top:4px">Route Planner — Sign In</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:#374151">Email</label>
+      <input type="email" id="login-email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')doLogin()" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none">
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:#374151">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none">
+    </div>
+    <div id="login-error" style="display:none;color:#dc2626;font-size:12px;margin-bottom:12px;padding:8px 12px;background:#fee2e2;border-radius:6px;text-align:center"></div>
+    <button onclick="doLogin()" id="login-btn" style="width:100%;background:#1a7a4a;color:#fff;border:none;padding:12px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s">Sign In</button>
+  </div>
+</div>
+
+<nav class="nav">
+  <div class="nav-logo">
+    <div class="nav-logo-icon">🌿</div>
+    Urban Harvest
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="nav-tab-upload" onclick="showPage('upload')">Upload Orders</button>
+    <button class="nav-tab" id="nav-tab-routes" onclick="showPage('routes')">Routes</button>
+    <button class="nav-tab" id="nav-tab-history" onclick="showPage('history')">History</button>
+    <button class="nav-tab" id="nav-tab-operations" onclick="showPage('operations')">Operations Log</button>
+    <button class="nav-tab" id="nav-tab-settings" onclick="showPage('settings')">Settings</button>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex-shrink:0">
+    <span id="nav-user-info" style="color:rgba(255,255,255,0.75);font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <button onclick="doLogout()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;flex-shrink:0">Sign Out</button>
+  </div>
+</nav>
+
+<!-- UPLOAD PAGE -->
+<div class="page active" id="page-upload">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Upload Daily Orders</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">CSV or Excel with columns: outlet name, weight</div>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="loadSampleData()">Load sample data</button>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="handleDrag(event,true)" ondragleave="handleDrag(event,false)" ondrop="handleDrop(event)">
+      <div class="upload-icon">📂</div>
+      <div class="upload-title">Drop your orders CSV here or click to browse</div>
+      <div class="upload-sub">Expected columns: <strong>outlet name</strong>, <strong>weight</strong> (kg)</div>
+    </div>
+    <input type="file" id="file-input" accept=".csv,.xlsx,.xls" onchange="handleFile(event)"/>
+  </div>
+
+  <div id="upload-result" style="display:none">
+    <div class="grid-4" id="upload-stats" style="margin-bottom:16px"></div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="section-header">
+        <div class="section-title" style="font-size:14px">Matched Outlets</div>
+        <div style="display:flex;gap:8px">
+          <span id="match-summary" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
+          <button class="btn btn-primary" onclick="generateRoutes()" id="gen-btn">Generate Routes →</button>
+        </div>
+      </div>
+      <div class="scroll-x">
+        <table class="preview-table" id="preview-table">
+          <thead><tr><th>Outlet Name (from order)</th><th>Matched Master Outlet</th><th>Weight (kg)</th><th>ETA</th><th>Zone</th><th>Distance from WH</th></tr></thead>
+          <tbody id="preview-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROUTES PAGE -->
+<div class="page" id="page-routes">
+  <div id="no-routes" class="card" style="text-align:center;padding:40px">
+    <div style="font-size:32px;margin-bottom:12px">🗺️</div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:6px">No routes generated yet</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Upload your daily orders and click "Generate Routes"</div>
+    <button class="btn btn-primary" onclick="showPage('upload')">Go to Upload →</button>
+  </div>
+
+  <div id="routes-content" style="display:none">
+    <div class="section-header">
+      <div>
+        <div class="section-title" id="routes-page-title">Routes for today</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px" id="routes-page-sub"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel()">⬇ Export to Excel</button>
+        <button class="btn btn-primary btn-sm" id="save-routes-btn" onclick="saveRoutesToDB()" style="display:none">💾 Save to History</button>
+      </div>
+    </div>
+    <div class="grid-4" id="route-summary-stats" style="margin-bottom:16px"></div>
+    <div id="insights-panel" style="margin-bottom:16px;display:none"></div>
+    <div class="filter-bar">
+      <select id="filter-vehicle" onchange="renderRouteCards()">
+        <option value="">All vehicles</option>
+        <option>EV450</option><option>ACE</option><option>Bolero</option>
+        <option>TATA 407</option><option>14FT</option>
+      </select>
+      <select id="filter-zone" onchange="renderRouteCards()">
+        <option value="">All zones</option>
+        <option>Delhi</option><option>Gurgaon</option><option>Noida</option>
+        <option>Faridabad</option><option>Outstation</option>
+      </select>
+      <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
+        <input type="checkbox" id="filter-conflict" onchange="renderRouteCards()"> Show conflicts &amp; late arrivals only
+      </label>
+    </div>
+    <div id="vehicle-summary-bar" style="display:none;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 4px;padding:10px 14px;background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);font-size:12px"></div>
+    <div class="routes-grid" id="routes-grid"></div>
+  </div>
+</div>
+
+<!-- OPERATIONS PAGE -->
+<div class="page" id="page-operations">
+  <div class="section-header">
+    <div class="section-title">Operations Log</div>
+    <button class="btn btn-secondary btn-sm" onclick="exportOpsExcel()">⬇ Export Log</button>
+  </div>
+  <div class="card">
+    <div id="ops-empty" style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">
+      Generate routes first to populate the operations log.
+    </div>
+    <div class="scroll-x" id="ops-table-wrap" style="display:none">
+      <table class="ops-table" id="ops-table">
+        <thead>
+          <tr>
+            <th>Route</th><th>Planned Vehicle</th><th>Actual Vehicle Type</th>
+            <th>No. of Vehicles</th><th>Vehicle No.</th>
+            <th>Driver Name</th><th>Driver No.</th><th>Transport Partner</th>
+            <th>Dispatch Time (Planned)</th><th>Actual Dispatch</th>
+            <th>Reporting Time (Return)</th><th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="ops-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS PAGE -->
+<div class="page" id="page-settings">
+  <div class="section-title" style="margin-bottom:16px">Planner Settings</div>
+  <div class="grid-2" style="gap:16px">
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted)">TIME & SPEED</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Loading buffer at warehouse</div><div class="setting-sub">Time to load vehicle before dispatch</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-loading" value="20" min="5" max="60"> <span style="font-size:12px;color:var(--text-muted)">min</span></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Unloading buffer per stop</div><div class="setting-sub">Unload + formalities at each outlet</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-unloading" value="20" min="5" max="60"> <span style="font-size:12px;color:var(--text-muted)">min</span></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">City speed (NCR)</div><div class="setting-sub">Average speed within Delhi NCR</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-city-speed" value="30" min="10" max="60"> <span style="font-size:12px;color:var(--text-muted)">km/h</span></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Highway speed (Outstation)</div><div class="setting-sub">Average speed on highways</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-highway-speed" value="55" min="30" max="100"> <span style="font-size:12px;color:var(--text-muted)">km/h</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted)">ROUTE CONSTRAINTS</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Max route distance (NCR)</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-max-dist" value="150" min="50" max="300"> <span style="font-size:12px;color:var(--text-muted)">km</span></div>
+      </div>
+      <!-- max-hours moved to route constraints card -->
+      <div class="setting-row">
+        <div><div class="setting-label">Outstation threshold</div><div class="setting-sub">Outlets beyond this are outstation</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-outstation-km" value="80" min="50" max="150"> <span style="font-size:12px;color:var(--text-muted)">km</span></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Regular driver hours</div><div class="setting-sub">Normal shift limit (routes beyond this show ⚡)</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-max-hours" value="12" min="4" max="20"> <span style="font-size:12px;color:var(--text-muted)">hrs</span></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Max overtime hours</div><div class="setting-sub">Hard upper limit per route (overtime allowed)</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-overtime-hours" value="14" min="8" max="20"> <span style="font-size:12px;color:var(--text-muted)">hrs</span></div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Crate / packaging weight</div><div class="setting-sub">Added on top of order weight for vehicle utilisation calculation</div></div>
+        <div style="display:flex;align-items:center;gap:6px"><input type="number" id="s-crate-pct" value="12" min="0" max="30"> <span style="font-size:12px;color:var(--text-muted)">%</span></div>
+      </div>
+      <div style="font-size:13px;font-weight:600;margin:16px 0 10px;color:var(--text-muted)">NO-ENTRY WINDOWS</div>
+      <div class="setting-row" style="border-bottom:none;padding-bottom:4px">
+        <div><div class="setting-label">Apply no-entry restrictions</div><div class="setting-sub">Schedule routes around Delhi &amp; Gurgaon no-entry windows</div></div>
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="toggleNoEntry()">
+          <div style="position:relative;display:inline-block;width:44px;height:24px">
+            <span id="s-no-entry-track" style="position:absolute;inset:0;background:var(--green);border-radius:24px;cursor:pointer;transition:.2s">
+              <span id="s-no-entry-thumb" style="position:absolute;left:22px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s"></span>
+            </span>
+          </div>
+          <span id="s-no-entry-label" style="font-size:12px;font-weight:500;color:var(--green)">ON</span>
+        </div>
+      </div>
+      <div id="no-entry-details">
+        <div style="font-size:12px;padding:5px 0;border-top:1px solid var(--gray-border);border-bottom:1px solid var(--gray-border);margin-top:4px"><strong>Delhi:</strong> 7:00 AM–11:00 AM &amp; 4:00 PM–9:00 PM</div>
+        <div style="font-size:12px;padding:5px 0"><strong>Gurgaon:</strong> 8:00 AM–10:00 AM &amp; 5:00 PM–9:00 PM</div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="card" style="margin-top:16px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text-muted)">VEHICLE LIMITS</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Per-vehicle caps on drop points and route distance. Toggle each limit on/off individually or use the column header toggle to disable all at once. The tighter of this limit and the global max distance setting applies.</div>
+    <div class="scroll-x">
+      <table class="preview-table" style="font-size:12px">
+        <thead>
+          <tr>
+            <th>Vehicle</th>
+            <th style="text-align:center">Available Today</th>
+            <th>Max Load (kg)</th>
+            <th style="white-space:nowrap">
+              <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                <label class="vl-toggle" title="Enable drop-point limits for ALL vehicles">
+                  <input type="checkbox" id="vl-all-stops-en" checked onchange="vlToggleAll(this,'stops')">
+                  <span class="vl-slider"></span>
+                </label>
+                Max Drop Points
+              </div>
+            </th>
+            <th style="white-space:nowrap">
+              <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                <label class="vl-toggle" title="Enable distance limits for ALL vehicles">
+                  <input type="checkbox" id="vl-all-dist-en" checked onchange="vlToggleAll(this,'dist')">
+                  <span class="vl-slider"></span>
+                </label>
+                Max Route Distance (km)
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="vehicle-badge v-ev450" id="vl-ev450-badge">EV450</span></td>
+            <td style="text-align:center"><label class="vl-toggle" title="Mark EV450 as available today"><input type="checkbox" id="vl-ev450-avail" checked onchange="vlToggleAvail(this,'ev450')"><span class="vl-slider"></span></label></td>
+            <td style="color:var(--text-muted)">≤ 150 kg</td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable drop-point limit for EV450"><input type="checkbox" id="vl-ev450-stops-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-ev450-stops" value="8" min="1" max="50" style="width:65px;text-align:center;padding:4px"/> stops</div></td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable distance limit for EV450"><input type="checkbox" id="vl-ev450-dist-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-ev450-dist" value="80" min="10" max="500" style="width:75px;text-align:center;padding:4px"/> km</div></td>
+          </tr>
+          <tr>
+            <td><span class="vehicle-badge v-ace" id="vl-ace-badge">ACE</span></td>
+            <td style="text-align:center"><label class="vl-toggle" title="Mark ACE as available today"><input type="checkbox" id="vl-ace-avail" checked onchange="vlToggleAvail(this,'ace')"><span class="vl-slider"></span></label></td>
+            <td style="color:var(--text-muted)">≤ 500 kg</td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable drop-point limit for ACE"><input type="checkbox" id="vl-ace-stops-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-ace-stops" value="15" min="1" max="50" style="width:65px;text-align:center;padding:4px"/> stops</div></td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable distance limit for ACE"><input type="checkbox" id="vl-ace-dist-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-ace-dist" value="120" min="10" max="500" style="width:75px;text-align:center;padding:4px"/> km</div></td>
+          </tr>
+          <tr>
+            <td><span class="vehicle-badge v-bolero" id="vl-bolero-badge">Bolero</span></td>
+            <td style="text-align:center"><label class="vl-toggle" title="Mark Bolero as available today"><input type="checkbox" id="vl-bolero-avail" checked onchange="vlToggleAvail(this,'bolero')"><span class="vl-slider"></span></label></td>
+            <td style="color:var(--text-muted)">≤ 1,000 kg</td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable drop-point limit for Bolero"><input type="checkbox" id="vl-bolero-stops-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-bolero-stops" value="20" min="1" max="60" style="width:65px;text-align:center;padding:4px"/> stops</div></td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable distance limit for Bolero"><input type="checkbox" id="vl-bolero-dist-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-bolero-dist" value="200" min="10" max="500" style="width:75px;text-align:center;padding:4px"/> km</div></td>
+          </tr>
+          <tr>
+            <td><span class="vehicle-badge v-tata407" id="vl-tata407-badge">TATA 407</span></td>
+            <td style="text-align:center"><label class="vl-toggle" title="Mark TATA 407 as available today"><input type="checkbox" id="vl-tata407-avail" checked onchange="vlToggleAvail(this,'tata407')"><span class="vl-slider"></span></label></td>
+            <td style="color:var(--text-muted)">≤ 2,499 kg</td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable drop-point limit for TATA 407"><input type="checkbox" id="vl-tata407-stops-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-tata407-stops" value="30" min="1" max="80" style="width:65px;text-align:center;padding:4px"/> stops</div></td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable distance limit for TATA 407"><input type="checkbox" id="vl-tata407-dist-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-tata407-dist" value="300" min="10" max="600" style="width:75px;text-align:center;padding:4px"/> km</div></td>
+          </tr>
+          <tr>
+            <td><span class="vehicle-badge v-14ft" id="vl-14ft-badge">14FT</span></td>
+            <td style="text-align:center"><label class="vl-toggle" title="Mark 14FT as available today"><input type="checkbox" id="vl-14ft-avail" checked onchange="vlToggleAvail(this,'14ft')"><span class="vl-slider"></span></label></td>
+            <td style="color:var(--text-muted)">≤ 3,500 kg</td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable drop-point limit for 14FT"><input type="checkbox" id="vl-14ft-stops-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-14ft-stops" value="50" min="1" max="100" style="width:65px;text-align:center;padding:4px"/> stops</div></td>
+            <td><div class="vl-inp-wrap"><label class="vl-toggle" title="Enable distance limit for 14FT"><input type="checkbox" id="vl-14ft-dist-en" checked onchange="vlToggle(this)"><span class="vl-slider"></span></label><input type="number" id="vl-14ft-dist" value="500" min="10" max="1000" style="width:75px;text-align:center;padding:4px"/> km</div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;display:flex;align-items:center;justify-content:space-between;padding:16px 20px">
+    <div>
+      <div style="font-size:13px;font-weight:600">Apply Settings</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Settings take effect when routes are regenerated. Upload orders first, then click to regenerate.</div>
+    </div>
+    <button class="btn btn-primary" onclick="applySettingsAndRecalculate()">↻ Apply &amp; Regenerate Routes</button>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text-muted)">DATA QUALITY — FLAGGED OUTLETS</div>
+    <div class="alert alert-warn">5 outlets have coordinate issues and are excluded from routing. Please update your master sheet with correct coordinates.</div>
+    <table class="preview-table">
+      <thead><tr><th>Outlet</th><th>Issue</th></tr></thead>
+      <tbody>
+        <tr><td>Devyani International Limited (P604)</td><td class="match-fail">Coordinates appear invalid — needs manual correction</td></tr>
+        <tr><td>DEVYANI INTERNATIONAL LIMITED (P980)</td><td class="match-fail">Lat = Lon (28.45, 28.45) — data entry error</td></tr>
+        <tr><td>Sapphire Foods India Ltd (5914)</td><td class="match-fail">Lat = Lon (28.78, 28.78) — data entry error</td></tr>
+        <tr><td>Sapphire Foods India Limited (5905)</td><td class="match-fail">Lat = Lon (28.99, 28.99) — data entry error</td></tr>
+        <tr><td>Sapphire Foods India Ltd (5815)</td><td class="match-fail">Coordinates point to Rajasthan — likely wrong area</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TEAM MANAGEMENT — admin only -->
+  <div id="team-management-section" style="display:none;margin-top:32px">
+    <div class="section-title" style="margin-bottom:16px">Team Members</div>
+    <div class="card">
+      <div id="team-list"><div style="color:var(--text-muted);font-size:13px">Loading...</div></div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-border)">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Change User Role</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">First create the user in your Supabase dashboard (Authentication → Users → Add user), then use the dropdowns above to set their role. New users default to Viewer.</div>
+        <button class="btn btn-secondary btn-sm" onclick="loadTeamMembers()">↻ Refresh Team List</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY PAGE -->
+<div class="page" id="page-history">
+  <div class="section-header">
+    <div>
+      <div class="section-title">Route History</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Past saved route plans</div>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="loadHistory()">↻ Refresh</button>
+  </div>
+  <div id="history-list">
+    <div class="card" style="text-align:center;padding:40px;color:var(--text-muted)">
+      <div style="font-size:32px;margin-bottom:12px">🗂️</div>
+      <div style="font-size:14px;font-weight:500">No history loaded</div>
+      <div style="font-size:12px;margin-top:6px">Save routes using the "Save to History" button on the Routes page</div>
+    </div>
+  </div>
+</div>
+
+<!-- ROUTE DETAIL MODAL -->
+<div class="modal-overlay" id="route-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Route Details</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-secondary btn-sm" onclick="copyRouteForDriver()">📋 Copy for Driver</button>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="grid-4" id="modal-stats" style="margin-bottom:16px"></div>
+      <div id="route-map"></div>
+      <div style="margin-top:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px">Drop Sequence</div>
+        <ul class="stop-list" id="modal-stops"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied to clipboard!</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  MASTER DATA — 293 outlets (9 corrected / flagged)
+// ═══════════════════════════════════════════════
+const MASTER_DATA = [{"name":"Amicus Natural Products Private Limited (Gole Market)","lat":28.6330632,"lon":77.2046653,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited (Vikas Puri)","lat":28.6440107,"lon":77.0673254,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited GTB Nagar","lat":28.6974789,"lon":77.2050668,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Jangpura","lat":28.5819064,"lon":77.2459296,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Jasola","lat":28.5375083,"lon":77.2851494,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Laxmi Nagar","lat":28.6277582,"lon":77.2765361,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Malviya nagar","lat":28.5377493,"lon":77.2099058,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Rajouri Garden","lat":28.6538362,"lon":77.1322083,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Vasant kunj","lat":28.5273383,"lon":77.1334422,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited (Sector 65)","lat":28.3981633,"lon":77.061651,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited (SECTOR-82)","lat":28.3900561,"lon":76.9566833,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Golf Course Road","lat":28.4354766,"lon":77.0865034,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Sector 106 Gurgaon","lat":28.5036643,"lon":76.9902625,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Sector 16 Faridabad","lat":28.411466,"lon":77.3112722,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Sector 48 Sohna Road","lat":28.4274986,"lon":77.0336806,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Sushant Lok","lat":28.4606096,"lon":77.0600405,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Udyog Vihar","lat":28.5092129,"lon":77.0809646,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Greater Noida","lat":28.4812583,"lon":77.4817627,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited (Noida Sec-73)","lat":28.579715,"lon":77.3827904,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Indirapuram","lat":28.644779,"lon":77.349469,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Noida Gaur City 2","lat":28.6055623,"lon":77.4248777,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Noida Sec-141","lat":28.5060152,"lon":77.4129281,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Noida Sector 46","lat":28.5491449,"lon":77.3604615,"eta":"12:00:00 PM"},{"name":"Amicus Natural Products Private Limited Noida Sector 6","lat":28.59522,"lon":77.3171707,"eta":"12:00:00 PM"},{"name":"BABOUNE FOODS PRIVATE LIMITED","lat":28.429647,"lon":77.5517516,"eta":"10:00:00 AM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (D21)","lat":28.552,"lon":77.0583,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Epica/Moti Nagar)","lat":28.6580211,"lon":77.1424603,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Janak Cinema)","lat":28.611217,"lon":77.0911213,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Kalka Ji)","lat":28.5423462,"lon":77.2508492,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Kamal Nagar)","lat":28.6799802,"lon":77.2057303,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Mayur Vihar )","lat":28.6082973,"lon":77.2927525,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Papcific Mall Jasola)","lat":28.5371335,"lon":77.2804619,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Tagore Garden)","lat":28.6422449,"lon":77.1032077,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (Unity One)","lat":28.7150017,"lon":77.1135215,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (VK)","lat":28.5416602,"lon":77.1526125,"eta":"8:00:00 PM"},{"name":"Compass India Food Services Private Limited (AMERICAN EXPRESS)","lat":28.4020767,"lon":77.0001488,"eta":"2:00:00 PM"},{"name":"Compass India Food Services Private Limited (CPU GGN)","lat":28.430986,"lon":76.9881859,"eta":"2:00:00 PM"},{"name":"COMPASS INDIA FOOD SERVICES PRIVATE LIMITED (CPU3)","lat":28.4309864,"lon":76.9881859,"eta":"2:00:00 PM"},{"name":"Compass India Food Services Private Limited (GOOGLE-SIGB)","lat":28.4605961,"lon":77.04562,"eta":"2:00:00 PM"},{"name":"Compass India Food Services Pvt Ltd (Google Connect-Tril )","lat":28.4021778,"lon":77.0357018,"eta":"2:00:00 PM"},{"name":"Compass India Food Services Pvt Ltd (GOOGLE INDIA-SIGD)","lat":28.4626522,"lon":77.0456581,"eta":"2:00:00 PM"},{"name":"GOC SERVICES INDIA PVT LTD - TIP-2","lat":28.411113,"lon":77.1148873,"eta":"2:00:00 PM"},{"name":"GOOGLE CONNECT SERVICES INDIA PVT (GOVO)","lat":28.4111137,"lon":77.1148873,"eta":"2:00:00 PM"},{"name":"CRAVICIOUS FOODS PRIVATE LIMITED (Noida)","lat":28.4297662,"lon":77.5416973,"eta":"9:00:00 AM"},{"name":"DANA CHOGA (SEC-14)","lat":28.4822964,"lon":77.0469473,"eta":"12:00:00 PM"},{"name":"DANA CHOGA (SEC-22)","lat":28.479786,"lon":77.0428029,"eta":"12:00:00 PM"},{"name":"DANA CHOGA (SEC-54)","lat":28.4799214,"lon":76.9649061,"eta":"12:00:00 PM"},{"name":"DANA CHOGA FOODS AND HOSPITALITY PRIVATE (Nirvana)","lat":28.4139085,"lon":77.0634729,"eta":"12:00:00 PM"},{"name":"DANA CHOGA FOODS AND HOSPITALITY PRIVATE (SEC-26)","lat":28.472074,"lon":77.0299822,"eta":"12:00:00 PM"},{"name":"DANA CHOGA FOODS AND HOSPITALITY PRIVATE (SEC-45)","lat":28.4425811,"lon":77.0641662,"eta":"12:00:00 PM"},{"name":"DANA CHOGA FOODS AND HOSPITALITY PRIVATE (SEC-47)","lat":28.4249497,"lon":77.0363624,"eta":"12:00:00 PM"},{"name":"DANA CHOGA FOODS AND HOSPITALITY PRIVATE (Sec-83)","lat":28.3927181,"lon":76.8950844,"eta":"12:00:00 PM"},{"name":"Dana Choga Foods And Hospitality PVT LTD (DLF DOWN TOWN)","lat":28.5033853,"lon":77.0225452,"eta":"12:00:00 PM"},{"name":"Dana Choga Foods And Hospitality PVT LTD (DRK EXP Sec-102)","lat":28.4788028,"lon":76.9204464,"eta":"12:00:00 PM"},{"name":"Dana Choga Foods And Hospitality PVT LTD (Sector-69)","lat":28.3997196,"lon":76.9664704,"eta":"12:00:00 PM"},{"name":"Devyani International Limited (075)","lat":28.5673949,"lon":77.2441367,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (088)","lat":28.6416609,"lon":77.1024726,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (127)","lat":28.6406839,"lon":77.0724319,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (17)","lat":28.7126358,"lon":77.1249109,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (243)","lat":28.5501564,"lon":77.240549,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (248)","lat":28.6198556,"lon":76.9988705,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (250)","lat":28.6360067,"lon":77.0777769,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (72)","lat":28.5375172,"lon":77.2842286,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (897)","lat":28.658381,"lon":77.0004184,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P321)","lat":28.5506382,"lon":77.1194906,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P327)","lat":28.6132315,"lon":77.0377125,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P341)","lat":28.5247138,"lon":77.1539431,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P343)","lat":28.7160858,"lon":77.111706,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P345)","lat":28.6000576,"lon":77.0634459,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P348)","lat":28.5370958,"lon":77.2548546,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P354)","lat":28.6082792,"lon":76.9698377,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P388)","lat":28.6896704,"lon":77.1323937,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P401)","lat":28.6012146,"lon":77.0105079,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P426)","lat":28.6994833,"lon":77.2054419,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P486)","lat":28.5694587,"lon":77.2656061,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P488)","lat":28.592341,"lon":76.8971819,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P537)","lat":28.6539726,"lon":77.2587749,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P568)","lat":28.5880549,"lon":77.16584,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P569)","lat":28.5839036,"lon":77.0690149,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P606)","lat":28.6221355,"lon":76.9862533,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P623)","lat":28.6574382,"lon":77.2840453,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P630)","lat":28.7186735,"lon":77.0286385,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P666)","lat":28.6894831,"lon":77.2671513,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P672)","lat":28.6081465,"lon":77.2900088,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P681)","lat":28.7345125,"lon":77.0954734,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P705)","lat":28.6793671,"lon":77.1929436,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P723)","lat":28.8538915,"lon":77.0844601,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P744)","lat":28.5074045,"lon":77.2219457,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P748)","lat":28.5541417,"lon":77.0626493,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P775)","lat":28.6674867,"lon":77.0827502,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P782)","lat":28.6275385,"lon":77.2096182,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P800)","lat":28.5763568,"lon":77.1846609,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P802)","lat":28.6193963,"lon":77.0690267,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P840)","lat":28.5557284,"lon":77.0884011,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P845)","lat":28.5558729,"lon":77.0164482,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P864)","lat":28.568423,"lon":76.8631398,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P867)","lat":28.6330629,"lon":77.1281408,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P921)","lat":28.7011567,"lon":77.1066082,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P938)","lat":28.5578053,"lon":77.0523055,"eta":"11:59:00 PM"},{"name":"Devyani International Ltd (K094)","lat":28.5579409,"lon":76.9753305,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED ( 372)","lat":28.4790203,"lon":77.0702722,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED ( Y049)","lat":28.521859,"lon":77.0127437,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (119)","lat":28.4733535,"lon":76.9989306,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (203)","lat":28.4375528,"lon":77.0304649,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (232)","lat":28.4398904,"lon":76.9964412,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (25)","lat":28.4757787,"lon":77.0344274,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (26)","lat":28.5038946,"lon":77.0866786,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (301)","lat":28.5038127,"lon":77.086731,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (330)","lat":28.4249075,"lon":77.028996,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (349)","lat":28.4392595,"lon":77.0303617,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (374)","lat":28.3234956,"lon":76.8910939,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (58)","lat":28.4434363,"lon":77.045703,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K120)","lat":28.4437155,"lon":77.0464847,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K163)","lat":28.3908959,"lon":77.0567997,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K179)","lat":28.4039049,"lon":76.937464,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K199)","lat":28.4242722,"lon":77.084561,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K283)","lat":28.5029875,"lon":77.0796118,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K287)","lat":28.4624571,"lon":77.0775178,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K479)","lat":28.4017489,"lon":77.0087267,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K487)","lat":28.4393693,"lon":76.9957191,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K512)","lat":28.5030594,"lon":76.9967414,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K536)","lat":28.4244846,"lon":76.9202855,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K549)","lat":28.459323,"lon":77.0377806,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K579)","lat":28.4247203,"lon":77.0580288,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K585)","lat":28.4670343,"lon":76.9590467,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K633)","lat":28.3774102,"lon":76.9487424,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K689)","lat":28.4342078,"lon":77.0489236,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K704)","lat":28.4936786,"lon":77.0785144,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K708)","lat":28.4457886,"lon":77.0707471,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K753)","lat":28.4460101,"lon":76.9165523,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (K951)","lat":28.4464162,"lon":76.9165509,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (KFC Paras Floret- Y009 )","lat":28.4468223,"lon":76.9165494,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P328)","lat":28.4257615,"lon":77.0471166,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P339)","lat":28.4624704,"lon":77.0525184,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P381)","lat":28.3907515,"lon":77.0570089,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P400)","lat":28.4039039,"lon":76.9374727,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P478)","lat":28.4039917,"lon":76.9066368,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P679)","lat":28.401361,"lon":77.0097248,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P710)","lat":28.4242044,"lon":76.8609092,"eta":"11:59:00 PM"},{"name":"Devyani International Limited (P745)","lat":28.4668503,"lon":76.9591279,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P764)","lat":28.4249611,"lon":77.0286884,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P772)","lat":28.4259953,"lon":76.8744907,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P812)","lat":28.3765803,"lon":76.9494189,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P829)","lat":28.4801238,"lon":77.0702264,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P876)","lat":28.4531201,"lon":77.0406731,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (P893)","lat":28.4533468,"lon":76.7219619,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED (Y038)","lat":28.393137,"lon":76.9658236,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED(K833)","lat":28.4064737,"lon":77.0344112,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED(Z011)","lat":28.4131565,"lon":77.1033597,"eta":"11:59:00 PM"},{"name":"DEVYANI INTERNATIONAL LIMITED(Z102)","lat":28.5227688,"lon":77.0134338,"eta":"11:59:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED - Karnal Haveli Haryana","lat":29.7563861,"lon":76.9662003,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED - Sector7 Karnal","lat":29.6868139,"lon":76.9925025,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (DME 33 Nuh -75557)","lat":28.0342246,"lon":77.1175204,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Milestone 109)","lat":29.5689136,"lon":76.9575623,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Subway Riyasat Resort)","lat":29.9023317,"lon":76.9108668,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Advent)","lat":28.5010521,"lon":77.4071308,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Alpha 1 Noida)","lat":28.4729973,"lon":77.5120928,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Blue Sapphire)","lat":28.6073795,"lon":77.4337689,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Botanical Garden)","lat":28.5640684,"lon":77.3317051,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Cleo County Noida)","lat":28.5969889,"lon":77.3900526,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (CRC Sublimis Noida)","lat":28.5755589,"lon":77.4306096,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Garh Road)","lat":28.967412,"lon":77.7120732,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Golden I Noida)","lat":28.5915625,"lon":77.433003,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Grand Venice Mall)","lat":28.465273,"lon":77.4924738,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Gulshan Mall)","lat":28.5080789,"lon":77.3842946,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Logix Cyber Park)","lat":28.6124104,"lon":77.2213553,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (North india Mall)","lat":28.6371191,"lon":77.3643643,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Rcube Monad Noida)","lat":28.5607345,"lon":77.3541734,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Sec 110)","lat":28.5450091,"lon":77.3663644,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Sec 120)","lat":28.5862095,"lon":77.3963359,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Sector 18 Noida)","lat":28.5712739,"lon":77.3223166,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Sector 78 Noida)","lat":28.5640416,"lon":77.3821266,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Sharda Hospital, Greater Noida)","lat":28.4737847,"lon":77.4796348,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Sky Mark)","lat":28.5320811,"lon":77.3590977,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED (Supertech 34 Noida)","lat":28.5820047,"lon":77.3623031,"eta":"9:00:00 PM"},{"name":"Eversub India Private Limited Shop (Eros Indirapuram)","lat":28.6404633,"lon":77.357803,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED Vaishali Ghaziabad","lat":28.6424755,"lon":77.3338424,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(AMITY UNIVERSITY )","lat":28.5466971,"lon":77.3319946,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Bennett University )","lat":28.4488702,"lon":77.5648461,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(DLF Mall of India)","lat":28.5673962,"lon":77.3184588,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Down Town Meerut)","lat":29.0079036,"lon":77.7440821,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Galaxy Business Park)","lat":28.6244756,"lon":77.3678741,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Gaur City)","lat":28.6059422,"lon":77.4269876,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Knowledge Park)","lat":28.4572322,"lon":77.497796,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(La Gracia Mall)","lat":28.6318861,"lon":77.4320217,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Mahagun Mart Gaur city2)","lat":28.6192855,"lon":77.4085695,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Noida-16)","lat":28.5801124,"lon":77.3126957,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Opulent Mall)","lat":28.654377,"lon":77.4340962,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Oxygen Business Park)","lat":28.4978686,"lon":77.4155267,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Pratap Vihar)","lat":28.6438786,"lon":77.4063285,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Subharti University)","lat":28.9626611,"lon":77.6374686,"eta":"9:00:00 PM"},{"name":"EVERSUB INDIA PRIVATE LIMITED(Vasundhara)","lat":28.6339961,"lon":77.3116193,"eta":"9:00:00 PM"},{"name":"Haldiram Snacks Private Limited","lat":28.612092,"lon":77.372614,"eta":"8:00:00 AM"},{"name":"Jasper Associates Pvt Ltd","lat":28.59282,"lon":76.898952,"eta":"11:00:00 PM"},{"name":"Jubilant Foodworks Ltd (Gautam Budh Nagar)","lat":28.418341,"lon":76.711465,"eta":"11:00:00 AM"},{"name":"Jubilant Foodworks Ltd (Hongs Kitchen)","lat":28.418341,"lon":76.711465,"eta":"11:00:00 AM"},{"name":"Jubilant Foodworks LTD (Mohali)","lat":30.7275702,"lon":76.7066442,"eta":"11:00:00 AM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED ( Ansa City Centre)","lat":28.3753467,"lon":76.2903457,"eta":"8:00:00 PM"},{"name":"BURMAN HOSPITALITY PRIVATE LIMITED (ATS Ghaziabad)","lat":28.6558466,"lon":77.4702711,"eta":"8:00:00 PM"},{"name":"Muhavra Enterprises Pvt. Ltd.(HR)","lat":28.5064736,"lon":77.0843463,"eta":"12:00:00 PM"},{"name":"OBEROI FLIGHT SERVICES-DL","lat":28.5570221,"lon":77.0794945,"eta":"11:00:00 AM"},{"name":"Om Sweets Pvt Ltd","lat":28.4409613,"lon":76.9622499,"eta":"10:00:00 AM"},{"name":"PJTJ TECHNOLOGIS PRIVATE LIMTED(Sec-42)","lat":28.9023476,"lon":77.0636788,"eta":"6:00:00 PM"},{"name":"Rebel Foods Private Limited (Mohali-1)","lat":30.7282765,"lon":76.767163,"eta":"7:00:00 PM"},{"name":"Rebel Foods Private Limited (NAC Chandigarh)","lat":30.7077473,"lon":76.8194847,"eta":"7:00:00 PM"},{"name":"Rebel Foods Private Limited (Mohali-2)","lat":30.7164004,"lon":76.7136114,"eta":"7:00:00 PM"},{"name":"Rebel Foods Private Limited ( Kharar)","lat":30.745118,"lon":76.5090774,"eta":"7:00:00 PM"},{"name":"Rebel Foods Private Limited (Phase 11 Mohali)","lat":30.6796508,"lon":76.6624635,"eta":"7:00:00 PM"},{"name":"Rebel Foods Private Limited (Zirakpur)","lat":30.6490351,"lon":76.8197598,"eta":"7:00:00 PM"},{"name":"Sapphire Foods India Limited (5301)","lat":28.5414259,"lon":77.1187444,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5302)","lat":28.632675,"lon":77.2137476,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5303)","lat":28.6312083,"lon":77.2166035,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5304)","lat":28.592133,"lon":77.0370089,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5306)","lat":28.5922068,"lon":76.9983837,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5307)","lat":28.620879,"lon":77.0636856,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5308)","lat":28.62836,"lon":77.0576856,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5309)","lat":28.542172,"lon":77.2509964,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5310)","lat":28.6804737,"lon":77.2055151,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5312)","lat":28.5693297,"lon":77.2401951,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5313)","lat":28.7008321,"lon":77.0983959,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5314)","lat":28.5514532,"lon":77.2490655,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5315)","lat":28.6455397,"lon":77.1663551,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5316)","lat":28.6393532,"lon":77.2862462,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5317)","lat":28.714871,"lon":76.9723244,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5318)","lat":28.52342,"lon":77.1986778,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5319)","lat":28.642702,"lon":76.8175489,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5321)","lat":28.5331605,"lon":77.1453832,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5322)","lat":28.5294731,"lon":77.2168693,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5325)","lat":28.6893582,"lon":77.1318803,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5326)","lat":28.6592768,"lon":77.2861468,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5327)","lat":28.6509956,"lon":77.1187633,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5328)","lat":28.5891041,"lon":77.2990282,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5329)","lat":28.690235,"lon":77.0062974,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5333)","lat":28.6008217,"lon":77.0271391,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5334)","lat":28.7151222,"lon":76.9723241,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5335)","lat":28.6032646,"lon":77.0731985,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5337)","lat":28.5525251,"lon":77.0559023,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5338)","lat":28.6894885,"lon":77.0520524,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5339)","lat":28.6565739,"lon":77.1467408,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5340)","lat":28.6681175,"lon":77.051342,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5341)","lat":28.5369295,"lon":77.1938657,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5342)","lat":28.5763717,"lon":77.1925591,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5343)","lat":28.6225445,"lon":77.0568255,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5345)","lat":28.6679038,"lon":77.2260479,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5346)","lat":28.5627047,"lon":77.2221251,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5348)","lat":28.6061655,"lon":76.9837122,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5349)","lat":28.636656,"lon":77.1433094,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5351)","lat":28.6180267,"lon":77.2769401,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5352)","lat":28.6370693,"lon":77.282071,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5353)","lat":28.5439522,"lon":77.1972016,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5354)","lat":28.6639868,"lon":77.0898903,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5357)","lat":28.7129457,"lon":77.1557361,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5358)","lat":28.6759597,"lon":77.3183401,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5359)","lat":28.6160325,"lon":77.0825611,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5360)","lat":28.7343987,"lon":77.1111141,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5361)","lat":28.5373056,"lon":77.2803665,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5362)","lat":28.5616182,"lon":77.2663202,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5363)","lat":28.5576038,"lon":77.1617709,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5365)","lat":28.5202606,"lon":77.2771766,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5366)","lat":28.624036,"lon":76.9511168,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5367)","lat":28.6417748,"lon":77.1202052,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5368)","lat":28.5069037,"lon":77.2295632,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5369)","lat":28.6448498,"lon":77.186095,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5371)","lat":28.5470753,"lon":77.2493145,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5373)","lat":28.6796716,"lon":77.1914384,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5374)","lat":28.6606797,"lon":77.2951731,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5375)","lat":28.5747772,"lon":77.0650312,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5376)","lat":28.5942767,"lon":77.2959271,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5380)","lat":28.555664,"lon":77.097029,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5381)","lat":28.5920963,"lon":77.1595575,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5382)","lat":28.5213357,"lon":77.0797561,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5383)","lat":28.4812248,"lon":77.1232261,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5384)","lat":28.627043,"lon":77.0620705,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5386)","lat":28.6704826,"lon":77.1303563,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5388)","lat":28.6125448,"lon":77.3080652,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5390)","lat":28.6580437,"lon":77.1425511,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5391)","lat":28.6951998,"lon":77.1497269,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5395)","lat":28.5768762,"lon":77.0145511,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (DLF Midtown Plaza-5389)","lat":28.6635802,"lon":77.1512498,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Ltd (5332)","lat":28.6456329,"lon":77.2072611,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Ltd (5378)","lat":28.6983662,"lon":77.2032428,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Ltd (5379)","lat":28.6553102,"lon":77.2059232,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Ltd (5393)","lat":28.5023257,"lon":77.2963861,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (2600)","lat":28.4944078,"lon":77.0904352,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (2601)","lat":28.5079483,"lon":77.0430755,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (2603)","lat":28.5116913,"lon":77.0329836,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (2606)","lat":28.4210613,"lon":77.0880937,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5904)","lat":28.9327626,"lon":76.9924386,"eta":"11:59:00 PM"},{"name":"Sapphire Foods India Limited (5921)","lat":29.341691,"lon":76.9753366,"eta":"11:59:00 PM"},{"name":"Tajsats Air Catering Ltd (Delhi)","lat":28.5487286,"lon":77.1048235,"eta":"8:00:00 AM"},{"name":"THEA KITCHEN PRIVATE LIMITED","lat":28.4338299,"lon":77.0001935,"eta":"9:00:00 AM"},{"name":"VRB CONSUMER PRODUCTS PRIVATE LIMITED (Alwar-1)","lat":27.815332,"lon":76.2224499,"eta":"As per customer"},{"name":"VRB CONSUMER PRODUCTS PRIVATE LIMITED (Alwar-2)","lat":27.9805499,"lon":76.3845559,"eta":"As per customer"}];
+
+const WH = {lat:28.938543, lon:77.082583};
+const VEHICLE_CAPACITY = {'EV450':150,'ACE':500,'Bolero':1000,'TATA 407':2499,'14FT':3500};
+let generatedRoutes = [];
+let currentRouteIdx = null;
+let mapInstance = null;
+let noEntryEnabled = true;   // no-entry toggle state
+const ROAD_CITY = 1.3;       // aerial → road distance factor (city)
+const ROAD_HWY  = 1.15;      // aerial → road distance factor (outstation/highway)
+const MAX_VEHICLE_WEIGHT = 3500; // kg — hard cap per vehicle
+
+// ═══════════════════════════════════════════════
+//  UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function etaToMinutes(etaStr){
+  if(!etaStr||etaStr==='As per customer') return Infinity;
+  const m=etaStr.match(/(\d+):(\d+)(?::\d+)?\s*(AM|PM)/i);
+  if(!m) return Infinity;
+  let h=parseInt(m[1]),min=parseInt(m[2]),ap=m[3].toUpperCase();
+  if(ap==='PM'&&h!==12) h+=12;
+  if(ap==='AM'&&h===12) h=0;
+  return h*60+min;
+}
+function minutesToTime(mins){
+  const totalMins=Math.round(mins);
+  const nextDay=totalMins>=24*60;
+  const h=Math.floor(totalMins/60)%24,m=totalMins%60;
+  const ap=h<12?'AM':'PM',hh=h%12||12;
+  if(hh===12&&m===0) return ap==='AM'?`12 Midnight${nextDay?' (+1 day)':''}`:'12 Noon';
+  return `${hh}:${m.toString().padStart(2,'0')} ${ap}${nextDay?' (+1 day)':''}`;
+}
+function getZone(lat,lon){
+  const dist=haversine(WH.lat,WH.lon,lat,lon);
+  const s=getSettings();
+  if(dist>s.outstationKm) return 'Outstation';
+  // Gurgaon: south-west; lon lower 76.82 catches SW Gurgaon, upper 77.15 catches Golf Course sectors
+  if(lat>=28.30&&lat<=28.58&&lon>=76.82&&lon<=77.15) return 'Gurgaon';
+  // Faridabad: check BEFORE Noida — lat 28.35-28.52 overlaps with Noida's lat range
+  if(lat>=28.35&&lat<=28.52&&lon>=77.20&&lon<=77.46) return 'Faridabad';
+  // Noida/Greater Noida: east of Yamuna; lat floor raised to 28.50 now Faridabad is out
+  if(lon>=77.28&&lat>=28.50&&lat<28.72) return 'Noida';
+  // Delhi: west bound 76.84 covers far-west Delhi (Najafgarh, outer Dwarka); north 28.90 covers Alipur
+  if(lat>=28.49&&lat<=28.90&&lon>=76.84&&lon<=77.38) return 'Delhi';
+  return 'NCR';
+}
+function isNoEntry(zone,arrivalMins){
+  // Returns true if vehicle CANNOT enter at this time (during no-entry window)
+  if(!getSettings().noEntry) return false; // restrictions disabled
+  if(zone==='Delhi'){
+    // No-entry FOR commercial vehicles: 7–11 AM and 4–9 PM (prohibited hours)
+    const w1=arrivalMins>=7*60&&arrivalMins<11*60;
+    const w2=arrivalMins>=16*60&&arrivalMins<21*60;
+    return w1||w2;  // blocked DURING these windows
+  }
+  if(zone==='Gurgaon'){
+    // No-entry: 8–10 AM and 5–9 PM
+    const w1=arrivalMins>=8*60&&arrivalMins<10*60;
+    const w2=arrivalMins>=17*60&&arrivalMins<21*60;
+    return w1||w2;
+  }
+  return false;
+}
+function nextAllowedWindow(zone,fromMins){
+  // Returns the earliest time >= fromMins when no-entry restriction has ENDED
+  if(zone==='Delhi'){
+    if(fromMins>=7*60&&fromMins<11*60) return 11*60;  // wait until after morning no-entry
+    if(fromMins>=16*60&&fromMins<21*60) return 21*60; // wait until after evening no-entry
+    return fromMins; // already in a free window
+  }
+  if(zone==='Gurgaon'){
+    if(fromMins>=8*60&&fromMins<10*60) return 10*60;  // wait until after morning no-entry
+    if(fromMins>=17*60&&fromMins<21*60) return 21*60; // wait until after evening no-entry
+    return fromMins;
+  }
+  return fromMins;
+}
+function getSettings(){
+  return{
+    loadingMin:parseInt(document.getElementById('s-loading')?.value||20),
+    unloadingMin:parseInt(document.getElementById('s-unloading')?.value||20),
+    citySpeed:parseInt(document.getElementById('s-city-speed')?.value||30),
+    highwaySpeed:parseInt(document.getElementById('s-highway-speed')?.value||55),
+    maxDist:parseInt(document.getElementById('s-max-dist')?.value||150),
+    maxHours:parseInt(document.getElementById('s-max-hours')?.value||12),
+    overtimeHours:parseInt(document.getElementById('s-overtime-hours')?.value||14),
+    outstationKm:parseInt(document.getElementById('s-outstation-km')?.value||80),
+    noEntry:noEntryEnabled,
+    cratePercent:Math.max(0,parseInt(document.getElementById('s-crate-pct')?.value||12))
+  };
+}
+function toggleNoEntry(){
+  noEntryEnabled=!noEntryEnabled;
+  const on=noEntryEnabled;
+  document.getElementById('s-no-entry-track').style.background=on?'var(--green)':'#cbd5e1';
+  document.getElementById('s-no-entry-thumb').style.left=on?'22px':'3px';
+  document.getElementById('s-no-entry-label').textContent=on?'ON':'OFF';
+  document.getElementById('s-no-entry-label').style.color=on?'var(--green)':'var(--text-muted)';
+  document.getElementById('no-entry-details').style.opacity=on?'1':'0.4';
+  saveSettings();
+}
+function isVehicleAvailable(vehicleType){
+  const key=vehicleType.toLowerCase().replace(/[\s\/]/g,'');
+  const el=document.getElementById(`vl-${key}-avail`);
+  return el?el.checked:true;
+}
+function assignVehicle(weight){
+  const tiers=[
+    {v:'EV450',   max:150 },
+    {v:'ACE',     max:500 },
+    {v:'Bolero',  max:1000},
+    {v:'TATA 407',max:2499},
+    {v:'14FT',    max:Infinity},
+  ];
+  // Find the lightest tier that fits the weight AND is available
+  for(const t of tiers){
+    if(weight<=t.max&&isVehicleAvailable(t.v)) return t.v;
+  }
+  // All preferred tiers unavailable — return largest available as fallback
+  for(let i=tiers.length-1;i>=0;i--){
+    if(isVehicleAvailable(tiers[i].v)) return tiers[i].v;
+  }
+  return '14FT';
+}
+function getVehicleLimits(vehicleType){
+  const defs={
+    'EV450'   :{maxStops:8 ,maxDistKm:80 },
+    'ACE'     :{maxStops:15,maxDistKm:120},
+    'Bolero'  :{maxStops:20,maxDistKm:200},
+    'TATA 407':{maxStops:30,maxDistKm:300},
+    '14FT'    :{maxStops:50,maxDistKm:500},
+  };
+  const d=defs[vehicleType]||{maxStops:99,maxDistKm:999};
+  const key=vehicleType.toLowerCase().replace(/[\s\/]/g,'');
+  const stopsEl=document.getElementById(`vl-${key}-stops`);
+  const distEl=document.getElementById(`vl-${key}-dist`);
+  const stopsEnEl=document.getElementById(`vl-${key}-stops-en`);
+  const distEnEl=document.getElementById(`vl-${key}-dist-en`);
+  const stopsOn=stopsEnEl?stopsEnEl.checked:true;
+  const distOn=distEnEl?distEnEl.checked:true;
+  return{
+    maxStops :stopsOn&&stopsEl?Math.max(1,parseInt(stopsEl.value)||d.maxStops):99,
+    maxDistKm:distOn&&distEl ?Math.max(10,parseInt(distEl.value)||d.maxDistKm):999,
+  };
+}
+function vlToggle(cb){
+  const id=cb.id.replace('-en','');
+  const inp=document.getElementById(id);
+  if(inp) inp.disabled=!cb.checked;
+  saveSettings();
+}
+function vlToggleAvail(cb,key){
+  const badge=document.getElementById(`vl-${key}-badge`);
+  const row=cb.closest('tr');
+  const on=cb.checked;
+  if(badge) badge.style.opacity=on?'1':'0.35';
+  if(row) row.querySelectorAll('input[type=number]').forEach(el=>{el.style.opacity=on?'1':'0.35';el.disabled=!on;});
+  // Turn off / restore per-vehicle limit toggles when availability changes
+  ['stops','dist'].forEach(type=>{
+    const togEl=document.getElementById(`vl-${key}-${type}-en`);
+    const inp=document.getElementById(`vl-${key}-${type}`);
+    if(togEl){
+      if(!on){ togEl._prev=togEl.checked; togEl.checked=false; }
+      else { togEl.checked=togEl._prev??true; }
+      togEl.disabled=!on;
+    }
+    if(inp) inp.disabled=!on;
+  });
+}
+function vlToggleAll(masterCb,type){
+  ['ev450','ace','bolero','tata407','14ft'].forEach(k=>{
+    const togEl=document.getElementById(`vl-${k}-${type}-en`);
+    if(!togEl) return;
+    togEl.checked=masterCb.checked;
+    const inp=document.getElementById(`vl-${k}-${type}`);
+    if(inp) inp.disabled=!masterCb.checked;
+  });
+  saveSettings();
+}
+function vehicleBadgeClass(v){
+  const m={'EV450':'v-ev450','ACE':'v-ace','Bolero':'v-bolero','TATA 407':'v-tata407','14FT':'v-14ft','Outstation':'v-outstation'};
+  return m[v]||'v-ev450';
+}
+function fuzzyMatch(name){
+  const n=name.toLowerCase().trim();
+  let best=null,bestScore=0;
+  for(const o of MASTER_DATA){
+    if(Math.abs(o.lat-o.lon)<1) continue; // skip entries where lat≈lon (data entry error)
+    const m=o.name.toLowerCase();
+    if(m===n) return o;
+    // Score: count matching words
+    const words=n.split(/\s+/);
+    let score=0;
+    for(const w of words) if(w.length>2&&m.includes(w)) score++;
+    const ratio=score/Math.max(words.length,1);
+    if(ratio>bestScore){bestScore=ratio;best=o;}
+  }
+  return bestScore>0.4?best:null;
+}
+
+// ═══════════════════════════════════════════════
+//  ROUTING ALGORITHM
+// ═══════════════════════════════════════════════
+
+// Quick route time estimator.
+// Uses the SAME etaSortedNeighbour ordering as buildRouteFromCluster so
+// the estimate matches actual route duration. Simulates from a 6 AM
+// reference dispatch so no-entry window waits are also included.
+// This ensures clustering never packs more stops than the driver-hours
+// limit allows, regardless of whether no-entry restrictions are on.
+function estimateRouteStats(stops,s){
+  // Returns {mins, distKm} in a single pass — avoids computing twice during clustering.
+  if(!stops||stops.length===0) return{mins:s.loadingMin,distKm:0};
+  const ordered=etaSortedNeighbour([...stops]);
+  const dispRef=6*60;
+  let cum=dispRef+s.loadingMin,dist=0;
+  let prevLat=WH.lat,prevLon=WH.lon;
+  for(const o of ordered){
+    const zone=getZone(o.lat,o.lon);
+    const isOut=zone==='Outstation';
+    const rf=isOut?ROAD_HWY:ROAD_CITY;
+    const spd=isOut?s.highwaySpeed:s.citySpeed;
+    const d=haversine(prevLat,prevLon,o.lat,o.lon);
+    dist+=d*rf;
+    cum+=(d*rf/spd)*60;
+    if(s.noEntry&&(zone==='Delhi'||zone==='Gurgaon')&&isNoEntry(zone,Math.round(cum))){
+      cum=nextAllowedWindow(zone,Math.round(cum));
+    }
+    cum+=s.unloadingMin;
+    prevLat=o.lat;prevLon=o.lon;
+  }
+  const lastZone=getZone(prevLat,prevLon);
+  const retOut=lastZone==='Outstation';
+  const retRf=retOut?ROAD_HWY:ROAD_CITY;
+  const retD=haversine(prevLat,prevLon,WH.lat,WH.lon)*retRf;
+  dist+=retD;
+  cum+=retD/(retOut?s.highwaySpeed:s.citySpeed)*60;
+  return{mins:cum-dispRef,distKm:Math.round(dist)};
+}
+// Thin wrapper kept for any legacy call-sites
+function estimateRouteMins(stops,s){ return estimateRouteStats(stops,s).mins; }
+
+// Returns true if there exists any dispatch time (3 AM–10 PM) where adding
+// candidate to cluster produces zero late arrivals. Uses 30-min sweep for speed;
+// exits early as soon as a clean dispatch is found.
+function isETACompatible(cluster,candidate,s){
+  if(!isFinite(etaToMinutes(candidate.eta))) return true; // No deadline — always OK
+  const tentative=etaSortedNeighbour([...cluster,candidate]);
+  for(let t=3*60;t<=22*60;t+=30){
+    let cum=t+s.loadingMin,pl=WH.lat,plo=WH.lon,late=false;
+    for(const o of tentative){
+      const dist=haversine(pl,plo,o.lat,o.lon);
+      const zone=getZone(o.lat,o.lon);
+      const sRf=zone==='Outstation'?ROAD_HWY:ROAD_CITY;
+      const sSpd=zone==='Outstation'?s.highwaySpeed:s.citySpeed;
+      cum+=(dist*sRf/sSpd)*60;
+      if(s.noEntry&&(zone==='Delhi'||zone==='Gurgaon')&&isNoEntry(zone,Math.round(cum)))
+        cum=nextAllowedWindow(zone,Math.round(cum));
+      const etaMins=etaToMinutes(o.eta);
+      if(isFinite(etaMins)&&Math.round(cum)>etaMins){late=true;break;}
+      cum+=s.unloadingMin;
+      pl=o.lat;plo=o.lon;
+    }
+    if(!late) return true;
+  }
+  return false;
+}
+
+// Cross-zone clustering that minimises vehicle count.
+// Fills each vehicle's time budget (up to overtimeHours) using geographic proximity.
+function minVehicleCluster(orders,s){
+  const maxTimeMins=(s.maxHours||12)*60;
+  const clusters=[];
+  const remaining=[...orders];
+
+  // Seed with most time-critical orders first so tight-ETA stops get dedicated clusters;
+  // within the same ETA tier, farthest-first ensures geographic coverage.
+  remaining.sort((a,b)=>{
+    const ea=etaToMinutes(a.eta),eb=etaToMinutes(b.eta);
+    if(isFinite(ea)&&!isFinite(eb)) return -1;
+    if(!isFinite(ea)&&isFinite(eb)) return 1;
+    if(isFinite(ea)&&isFinite(eb)&&ea!==eb) return ea-eb;
+    return b.distFromWH-a.distFromWH;
+  });
+
+  while(remaining.length>0){
+    const seed=remaining.shift();
+    const cluster=[seed];
+    let totalWeight=seed.weight;
+
+    // Greedy: keep adding the nearest stop that still fits weight+time budget
+    let expanded=true;
+    while(expanded&&remaining.length>0){
+      expanded=false;
+      // Use last stop in nearest-neighbour order as the proximity anchor
+      const orderedSoFar=nearestNeighbour([...cluster]);
+      const lastStop=orderedSoFar[orderedSoFar.length-1];
+
+      let bestIdx=-1,bestDist=Infinity;
+      for(let i=0;i<remaining.length;i++){
+        const o=remaining[i];
+        const newWeight=totalWeight+o.weight;
+        // Determine vehicle for this cluster weight, then check that orders+crates fit its capacity
+        const vType=assignVehicle(newWeight);
+        const vCap=VEHICLE_CAPACITY[vType]||MAX_VEHICLE_WEIGHT;
+        if(newWeight*(1+s.cratePercent/100)>vCap) continue;
+        // Stop count: use the largest available vehicle that can carry this weight,
+        // since the route may be upgraded to that tier after clustering.
+        const _effectiveTier=(()=>{
+          const _ts=['EV450','ACE','Bolero','TATA 407','14FT'];
+          for(let _i=_ts.indexOf(vType);_i<_ts.length;_i++){
+            if(!isVehicleAvailable(_ts[_i])) continue;
+            const _tc=VEHICLE_CAPACITY[_ts[_i]]||MAX_VEHICLE_WEIGHT;
+            if(newWeight*(1+s.cratePercent/100)>_tc) continue;
+            return _ts[_i];
+          }
+          return vType;
+        })();
+        const vLimits=getVehicleLimits(_effectiveTier);
+        if(cluster.length+1>vLimits.maxStops) continue;
+        // Combined time + distance check in a single pass
+        const stats=estimateRouteStats([...cluster,o],s);
+        if(stats.mins>maxTimeMins) continue;
+        // Distance check: find the largest allowed distance across all vehicle tiers
+        // that are available and can carry this weight — buildRouteFromCluster will
+        // assign the right vehicle after clustering via the upgrade logic.
+        const _allTiers=['EV450','ACE','Bolero','TATA 407','14FT'];
+        const _effectiveMaxDist=_allTiers.reduce((mx,tier)=>{
+          if(!isVehicleAvailable(tier)) return mx;
+          const tCap=VEHICLE_CAPACITY[tier]||MAX_VEHICLE_WEIGHT;
+          if(newWeight*(1+s.cratePercent/100)>tCap) return mx;
+          const tLim=getVehicleLimits(tier);
+          return Math.max(mx,tLim.maxDistKm);
+        },0);
+        if(stats.distKm>Math.min(s.maxDist,_effectiveMaxDist)) continue;
+        // ETA compatibility: skip if no dispatch time can serve all stops without late arrivals
+        if(!isETACompatible(cluster,o,s)) continue;
+        const dist=haversine(lastStop.lat,lastStop.lon,o.lat,o.lon);
+        if(dist<bestDist){bestDist=dist;bestIdx=i;}
+      }
+
+      if(bestIdx>=0){
+        const[taken]=remaining.splice(bestIdx,1);
+        cluster.push(taken);
+        totalWeight+=taken.weight;
+        expanded=true;
+      }
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
+// Guarantee: build a route from a cluster and, if it exceeds the driver
+// hours limit, split it into two halves (using ETA-sorted order so morning
+// stops go to Route A and evening stops to Route B) and recurse until every
+// resulting route fits within overtimeHours.  Single-stop routes are never
+// split further regardless of duration.
+function buildRouteRespectingHours(cluster,s,isOutstation){
+  const route=buildRouteFromCluster(cluster,s,isOutstation);
+  const limit=s.overtimeHours*60;
+  if(route.totalRouteMins<=limit||cluster.length<=1) return[route];
+  // Split along ETA-sorted order so the first half gets early-ETA stops
+  // and the second half gets late-ETA stops — each half gets a sensible
+  // dispatch window and is far less likely to span two no-entry windows.
+  const ordered=etaSortedNeighbour([...cluster]);
+  const mid=Math.ceil(ordered.length/2);
+  return[
+    ...buildRouteRespectingHours(ordered.slice(0,mid),s,isOutstation),
+    ...buildRouteRespectingHours(ordered.slice(mid),s,isOutstation)
+  ];
+}
+
+function buildRoutes(orders){
+  const s=getSettings();
+  // Separate outstation
+  const ncr=[],outstation=[];
+  for(const o of orders){
+    const dist=haversine(WH.lat,WH.lon,o.lat,o.lon);
+    o.distFromWH=dist;
+    o.zone=getZone(o.lat,o.lon);
+    if(dist>s.outstationKm) outstation.push(o);
+    else ncr.push(o);
+  }
+
+  const routes=[];
+
+  // --- OUTSTATION: group by proximity ---
+  if(outstation.length>0){
+    const outstationClusters=clusterByDirection(outstation,s);
+    for(const cluster of outstationClusters){
+      routes.push(...buildRouteRespectingHours(cluster,s,true));
+    }
+  }
+
+  // --- NCR: Cross-zone geographic clustering to MINIMISE vehicle count ---
+  // Zones may mix — geographic proximity + time budget drive clustering.
+  // Goal: fill each driver's shift (up to overtimeHours) before starting a new vehicle.
+  if(ncr.length>0){
+    const ncrClusters=minVehicleCluster(ncr,s);
+    for(const cluster of ncrClusters){
+      routes.push(...buildRouteRespectingHours(cluster,s,false));
+    }
+  }
+  return routes.sort((a,b)=>a.dispatchMins-b.dispatchMins);
+}
+
+
+function clusterByDirection(orders,s){
+  // For outstation, cluster by bearing angle
+  const withBearing=orders.map(o=>{
+    const dLat=o.lat-WH.lat,dLon=o.lon-WH.lon;
+    const bearing=Math.atan2(dLon,dLat)*180/Math.PI;
+    return{...o,bearing};
+  }).sort((a,b)=>a.bearing-b.bearing);
+  const clusters=[];
+  const used=new Set();
+  for(let i=0;i<withBearing.length;i++){
+    if(used.has(i)) continue;
+    const cluster=[withBearing[i]];
+    used.add(i);
+    let totalW=withBearing[i].weight;
+    for(let j=i+1;j<withBearing.length;j++){
+      if(used.has(j)) continue;
+      const angleDiff=Math.abs(withBearing[i].bearing-withBearing[j].bearing);
+      if(angleDiff>30) continue;
+      const _prospW=totalW+withBearing[j].weight;
+      const _vType=assignVehicle(_prospW);
+      const _vCap=VEHICLE_CAPACITY[_vType]||MAX_VEHICLE_WEIGHT;
+      if(_prospW*(1+s.cratePercent/100)>_vCap) continue;
+      cluster.push(withBearing[j]);
+      used.add(j);
+      totalW+=withBearing[j].weight;
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
+function buildRouteFromCluster(cluster,s,isOutstation){
+  const speed=isOutstation?s.highwaySpeed:s.citySpeed;
+  const rf=isOutstation?ROAD_HWY:ROAD_CITY; // road distance factor
+  // Order stops: ETA-bucketed nearest-neighbour (morning → afternoon → evening)
+  const ordered=etaSortedNeighbour(cluster);
+  // Calculate timing
+  const totalWeight=ordered.reduce((s,o)=>s+o.weight,0);
+
+  let totalDistKm=0;
+  let prevLat=WH.lat,prevLon=WH.lon;
+  for(const o of ordered){
+    const _segZone=getZone(o.lat,o.lon);
+    const _segRf=_segZone==='Outstation'?ROAD_HWY:ROAD_CITY;
+    totalDistKm+=haversine(prevLat,prevLon,o.lat,o.lon)*_segRf;
+    prevLat=o.lat;prevLon=o.lon;
+  }
+  const _retZone=getZone(prevLat,prevLon);
+  totalDistKm+=haversine(prevLat,prevLon,WH.lat,WH.lon)*(_retZone==='Outstation'?ROAD_HWY:ROAD_CITY);
+
+  // Assign vehicle by weight, then upgrade if the actual route distance exceeds that vehicle's limit
+  const _TIERS=['EV450','ACE','Bolero','TATA 407','14FT'];
+  let vehicle=assignVehicle(totalWeight);
+  for(let _vi=_TIERS.indexOf(vehicle);_vi<_TIERS.length-1;_vi++){
+    const _lim=getVehicleLimits(_TIERS[_vi]);
+    if(_lim.maxDistKm>=999||Math.round(totalDistKm)<=_lim.maxDistKm) break;
+    const _next=_TIERS[_vi+1];
+    if(isVehicleAvailable(_next)){ vehicle=_next; }
+  }
+
+  // totalRouteMins will be derived from actual simulation (returnMins - dispatchMins) below
+
+  // ── Dispatch time calculation ──
+  // Dense sweep: try every 15 min from 3am–10pm, score by:
+  //   conflicts (highest weight) → late arrivals → total earliness in hours
+  // The earliness penalty makes the optimizer dispatch LATER so vehicles
+  // arrive close to each stop's ETA rather than 12–14 hours before it.
+  function simulateDispatch(dispMins){
+    let cum=dispMins+s.loadingMin;
+    let pl=WH.lat,plo=WH.lon;
+    let conflicts=0,lateCount=0,totalEarlyMins=0;
+    const stops=ordered.map((o,i)=>{
+      const dist=haversine(pl,plo,o.lat,o.lon);
+      const zone=getZone(o.lat,o.lon);
+      const stopRf=zone==='Outstation'?ROAD_HWY:ROAD_CITY;
+      const stopSpd=zone==='Outstation'?s.highwaySpeed:s.citySpeed;
+      cum+=(dist*stopRf/stopSpd)*60;
+      // Flag conflict BEFORE waiting — conflict means we arrived during a no-entry window
+      const conflict=s.noEntry&&(zone==='Delhi'||zone==='Gurgaon')&&isNoEntry(zone,Math.round(cum));
+      if(conflict){
+        cum=nextAllowedWindow(zone,Math.round(cum));
+        conflicts++;
+      }
+      const arr=Math.round(cum);
+      const etaMins=etaToMinutes(o.eta);
+      const late=arr>etaMins&&isFinite(etaMins);
+      if(late) lateCount++;
+      // Earliness: minutes before ETA (skip "As per customer" which have no deadline)
+      if(!late&&isFinite(etaMins)) totalEarlyMins+=Math.max(0,etaMins-arr);
+      cum+=s.unloadingMin;
+      pl=o.lat;plo=o.lon;
+      return{...o,arrivalMins:arr,arrivalTime:minutesToTime(arr),conflict,late,stopNum:i+1,dist:Math.round(dist*10)/10,zone};
+    });
+    return{stops,conflicts,lateCount,totalEarlyMins,dispMins};
+  }
+
+  let best=null;
+  for(let t=3*60;t<=22*60;t+=15){
+    const sim=simulateDispatch(t);
+    // Score: late arrivals are worst, then no-entry conflicts (waits that don't cause lateness), then earliness
+    const score=sim.lateCount*1000+sim.conflicts*100+Math.round(sim.totalEarlyMins/60);
+    // On equal score prefer LATER dispatch (arrive closer to ETA rather than hours before)
+    if(!best||score<best.score||(score===best.score&&t>best.dispMins)){
+      best={...sim,score};
+    }
+  }
+
+  const dispatchMins=best.dispMins;
+  const stopsWithTime=best.stops;
+  const hasConflict=stopsWithTime.some(s=>s.conflict);
+  const hasLate=stopsWithTime.some(s=>s.late);
+
+  const lastStop=stopsWithTime[stopsWithTime.length-1];
+  const lastArrival=lastStop.arrivalMins+s.unloadingMin;
+  const _retLegZone=getZone(lastStop.lat,lastStop.lon);
+  const _retLegRf=_retLegZone==='Outstation'?ROAD_HWY:ROAD_CITY;
+  const _retLegSpd=_retLegZone==='Outstation'?s.highwaySpeed:s.citySpeed;
+  const returnMins=Math.round(lastArrival+haversine(lastStop.lat,lastStop.lon,WH.lat,WH.lon)*_retLegRf/_retLegSpd*60);
+  const totalRouteMins=returnMins-dispatchMins; // actual time including any window-waits
+  const zones=[...new Set(stopsWithTime.map(s=>s.zone||getZone(s.lat,s.lon)))];
+
+  return{
+    id:Math.random().toString(36).slice(2),
+    stops:stopsWithTime,
+    totalWeight:Math.round(totalWeight*100)/100,
+    totalDistKm:Math.round(totalDistKm),
+    vehicle,
+    isOutstation,
+    dispatchMins:Math.round(dispatchMins),
+    dispatchTime:minutesToTime(Math.round(dispatchMins)),
+    returnMins:Math.round(returnMins),
+    returnTime:minutesToTime(Math.round(returnMins)),
+    totalRouteMins:Math.round(totalRouteMins),
+    hasConflict,
+    hasLate,
+    zones
+  };
+}
+
+function nearestNeighbour(stops){
+  return nearestNeighbourFrom(stops,WH.lat,WH.lon);
+}
+
+// Nearest-neighbour from an arbitrary starting position (used by etaSortedNeighbour)
+function nearestNeighbourFrom(stops,startLat,startLon){
+  const result=[];
+  const remaining=[...stops];
+  let curLat=startLat,curLon=startLon;
+  while(remaining.length>0){
+    let best=0,bestDist=Infinity;
+    for(let i=0;i<remaining.length;i++){
+      const d=haversine(curLat,curLon,remaining[i].lat,remaining[i].lon);
+      if(d<bestDist){bestDist=d;best=i;}
+    }
+    result.push(remaining[best]);
+    curLat=remaining[best].lat;curLon=remaining[best].lon;
+    remaining.splice(best,1);
+  }
+  return result;
+}
+
+// Order stops by ETA bucket (morning → afternoon → evening → flexible),
+// applying nearest-neighbour within each bucket and chaining buckets together.
+// This ensures the dispatch optimizer sees a natural early→late progression
+// rather than having to reconcile a 3 AM stop mixed with a 9 PM stop.
+function etaSortedNeighbour(stops){
+  function bucket(stop){
+    const eta=etaToMinutes(stop.eta);
+    if(!isFinite(eta)) return 4; // "As per customer" → last
+    if(eta< 9*60)     return 0; // early morning : before 9 AM
+    if(eta<12*60)     return 1; // morning       : 9 AM–noon
+    if(eta<17*60)     return 2; // afternoon     : noon–5 PM
+    return 3;                    // evening       : after 5 PM
+  }
+  const buckets=[[],[],[],[],[]];
+  for(const stop of stops) buckets[bucket(stop)].push(stop);
+  let curLat=WH.lat,curLon=WH.lon;
+  const result=[];
+  for(const b of buckets){
+    if(b.length===0) continue;
+    const ordered=nearestNeighbourFrom(b,curLat,curLon);
+    result.push(...ordered);
+    const last=ordered[ordered.length-1];
+    curLat=last.lat;curLon=last.lon;
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════
+//  UI — UPLOAD
+// ═══════════════════════════════════════════════
+function handleDrag(e,on){e.preventDefault();document.getElementById('upload-zone').classList.toggle('drag',on);}
+function handleDrop(e){e.preventDefault();document.getElementById('upload-zone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f) parseCSV(f);}
+function handleFile(e){const f=e.target.files[0];if(f) parseCSV(f);e.target.value='';}
+
+function loadSampleData(){
+  const sample=`outlet name,weight\nAmicus Natural Products Private Limited (Gole Market),45\nAmicus Natural Products Private Limited (Vikas Puri),30\nAmicus Natural Products Private Limited GTB Nagar,25\nBURMAN HOSPITALITY PRIVATE LIMITED (D21),80\nBURMAN HOSPITALITY PRIVATE LIMITED (Epica/Moti Nagar),60\nBURMAN HOSPITALITY PRIVATE LIMITED (Kalka Ji),40\nCompass India Food Services Private Limited (GOOGLE-SIGB),120\nCompass India Food Services Private Limited (CPU GGN),90\nDANA CHOGA (SEC-14),35\nDANA CHOGA (SEC-22),40\nDANA CHOGA (SEC-54),28\nDevyani International Limited (088),22\nDevyani International Limited (127),18\nDevyani International Limited (243),25\nDevyani International Limited (P321),30\nEVERSUB INDIA PRIVATE LIMITED (Botanical Garden),15\nEVERSUB INDIA PRIVATE LIMITED (Sector 18 Noida),20\nEVERSUB INDIA PRIVATE LIMITED (Logix Cyber Park),18\nHaldiram Snacks Private Limited,200\nTajsats Air Catering Ltd (Delhi),150\nOBEROI FLIGHT SERVICES-DL,80\nRebel Foods Private Limited (NAC Chandigarh),50\nEVERSUB INDIA PRIVATE LIMITED - Karnal Haveli Haryana,35`;
+  const blob=new Blob([sample],{type:'text/csv'});
+  parseCSV(blob,'sample_orders.csv');
+}
+
+let parsedOrders=[];
+
+function parseCSV(file,name){
+  const reader=new FileReader();
+  reader.onload=function(e){
+    let data;
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    }catch(err){
+      alert('Could not parse file: '+err.message);
+      return;
+    }
+    if(!data||data.length<2){alert('File appears empty or has no data rows.');return;}
+    const headers=data[0].map(h=>String(h).toLowerCase().trim());
+    const nameCol=headers.findIndex(h=>h.includes('outlet')||h.includes('name'));
+    const weightCol=headers.findIndex(h=>h.includes('weight'));
+    if(nameCol<0||weightCol<0){alert('File must have "outlet name" and "weight" columns');return;}
+    parsedOrders=[];
+    const excluded=[];
+    const tbody=document.getElementById('preview-body');
+    tbody.innerHTML='';
+    let matched=0,unmatched=0,totalUploadedW=0,matchedW=0;
+    for(let i=1;i<data.length;i++){
+      const row=data[i];
+      const outletName=String(row[nameCol]||'').trim();
+      const rawW=row[weightCol];
+      const weight=parseFloat(rawW);
+      if(!outletName){excluded.push({name:'(blank row)',weight:'-',reason:'Empty outlet name'});continue;}
+      if(isNaN(weight)||weight<=0){excluded.push({name:outletName,weight:rawW||'-',reason:'Invalid or zero weight'});continue;}
+      totalUploadedW+=weight;
+      const masterMatch=fuzzyMatch(outletName);
+      const dist=masterMatch?Math.round(haversine(WH.lat,WH.lon,masterMatch.lat,masterMatch.lon)):null;
+      const zone=masterMatch?getZone(masterMatch.lat,masterMatch.lon):'-';
+      if(!masterMatch){
+        unmatched++;
+        excluded.push({name:outletName,weight,reason:'No matching outlet in master data'});
+      } else {
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${outletName}</td>
+          <td class="match-ok">${masterMatch.name}</td>
+          <td>${weight.toFixed(2)} kg</td>
+          <td>${masterMatch.eta}</td>
+          <td><span class="badge ${zone==='Outstation'?'badge-outstation':'badge-ncr'}">${zone}</span></td>
+          <td>${dist?dist+' km':'-'}</td>`;
+        tbody.appendChild(tr);
+        matched++;matchedW+=weight;
+        parsedOrders.push({...masterMatch,weight,uploadedName:outletName});
+      }
+    }
+    document.getElementById('upload-result').style.display='block';
+    document.getElementById('match-summary').textContent=`${matched} matched, ${unmatched} unmatched`;
+    renderExcludedSection(excluded);
+    const weightNote=totalUploadedW>matchedW?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px">of ${totalUploadedW.toFixed(2)} kg uploaded</div>`:'';
+    document.getElementById('upload-stats').innerHTML=`
+      <div class="stat"><div class="stat-label">Total orders</div><div class="stat-value">${matched+unmatched}</div></div>
+      <div class="stat"><div class="stat-label">Matched</div><div class="stat-value" style="color:var(--green)">${matched}</div></div>
+      <div class="stat"><div class="stat-label">Excluded</div><div class="stat-value" style="color:${excluded.length?'var(--red)':'var(--green)'}">${excluded.length}</div></div>
+      <div class="stat"><div class="stat-label">Matched weight</div><div class="stat-value">${matchedW.toFixed(2)} kg${weightNote}</div></div>`;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderExcludedSection(excluded){
+  let el=document.getElementById('excluded-section');
+  if(!el){
+    el=document.createElement('div');
+    el.id='excluded-section';
+    el.style.marginBottom='16px';
+    document.getElementById('upload-result').appendChild(el);
+  }
+  if(!excluded.length){el.innerHTML='';return;}
+  el.innerHTML=`
+    <div class="card">
+      <div class="section-header" style="margin-bottom:10px">
+        <div class="section-title" style="font-size:14px;color:var(--red)">⚠ Excluded from Routing (${excluded.length})</div>
+        <span style="font-size:11px;color:var(--text-muted)">These rows were not routed. Fix and re-upload to include them.</span>
+      </div>
+      <div class="scroll-x">
+        <table class="preview-table">
+          <thead><tr><th>Outlet Name (from order)</th><th>Weight</th><th>Reason Excluded</th></tr></thead>
+          <tbody>${excluded.map(e=>`<tr><td>${e.name}</td><td>${typeof e.weight==='number'?e.weight.toFixed(2)+' kg':e.weight}</td><td class="match-fail">${e.reason}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function generateRoutes(){
+  if(parsedOrders.length===0){alert('No matched orders to route');return;}
+  const anyVehicleAvail=['ev450','ace','bolero','tata407','14ft'].some(k=>{const el=document.getElementById(`vl-${k}-avail`);return el?el.checked:true;});
+  if(!anyVehicleAvail){alert('No vehicles are available today.\nEnable at least one vehicle in the Vehicle Limits settings before generating routes.');return;}
+  const s=getSettings();
+  generatedRoutes=buildRoutes(parsedOrders);
+  showPage('routes');
+  renderRoutesPage();
+  populateOpsTable();
+}
+
+// ═══════════════════════════════════════════════
+//  UI — ROUTES
+// ═══════════════════════════════════════════════
+function renderRoutesPage(){
+  if(generatedRoutes.length===0){
+    document.getElementById('no-routes').style.display='block';
+    document.getElementById('routes-content').style.display='none';
+    return;
+  }
+  document.getElementById('no-routes').style.display='none';
+  document.getElementById('routes-content').style.display='block';
+  const total=generatedRoutes.reduce((s,r)=>s+r.stops.length,0);
+  const totalW=generatedRoutes.reduce((s,r)=>s+r.totalWeight,0);
+  const outst=generatedRoutes.filter(r=>r.isOutstation).length;
+  const conflicts=generatedRoutes.filter(r=>r.hasConflict).length;
+  const lateRoutes=generatedRoutes.filter(r=>r.hasLate).length;
+  document.getElementById('route-summary-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Total routes</div><div class="stat-value">${generatedRoutes.length}</div></div>
+    <div class="stat"><div class="stat-label">Total stops</div><div class="stat-value">${total}</div></div>
+    <div class="stat"><div class="stat-label">Total weight</div><div class="stat-value">${totalW.toFixed(2)} kg</div></div>
+    <div class="stat"><div class="stat-label">Outstation routes</div><div class="stat-value" style="color:${outst?'var(--amber)':'var(--green)'}">${outst}</div>${conflicts?`<div class="stat-sub" style="color:var(--amber)">⚠ ${conflicts} scheduling conflict${conflicts>1?'s':''}</div>`:''}${lateRoutes?`<div class="stat-sub" style="color:var(--red)">⚠ ${lateRoutes} route${lateRoutes>1?'s':''} with late arrivals</div>`:''}` ;
+  document.getElementById('routes-page-sub').textContent=`${generatedRoutes.length} routes optimised · ${total} stops covered`;
+  renderRouteCards();
+  renderInsights();
+}
+
+function quickSet(id,val){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.value=val;
+  el.style.transition='background .1s';
+  el.style.background='#fef9c3';
+  setTimeout(()=>{el.style.background='';},1800);
+}
+function generateInsights(routes,s){
+  const ins=[];
+  if(!routes.length) return ins;
+  const caps=VEHICLE_CAPACITY;
+
+  const lateRts=routes.filter(r=>r.hasLate);
+  if(lateRts.length){
+    const n=lateRts.reduce((c,r)=>c+r.stops.filter(st=>st.late).length,0);
+    ins.push({type:'error',
+      msg:`${lateRts.length} route${lateRts.length>1?'s':''} — ${n} late stop${n>1?'s':''}`,
+      hint:'Tight-ETA stops grouped with distant stops',
+      label:'Show routes',
+      act:`document.getElementById('filter-conflict').checked=true;renderRouteCards()`});
+  }
+
+  const confRts=routes.filter(r=>r.hasConflict);
+  if(confRts.length){
+    ins.push({type:'warning',
+      msg:`${confRts.length} no-entry conflict${confRts.length>1?'s':''}`,
+      hint:'Route must pass Delhi/Gurgaon during restricted hours',
+      label:'Show routes',
+      act:`document.getElementById('filter-conflict').checked=true;renderRouteCards()`});
+  }
+
+
+  const evCnt=routes.filter(r=>r.vehicle==='EV450').length;
+  if(evCnt>5){
+    const stopsEl=document.getElementById('vl-ev450-stops');
+    const cur=stopsEl?parseInt(stopsEl.value)||8:8;
+    const nxt=Math.min(cur+4,20);
+    ins.push({type:'info',
+      msg:`${evCnt} EV450 routes — ${cur} stops each`,
+      hint:'Raising limit consolidates routes',
+      label:`Raise to ${nxt} stops`,
+      act:`quickSet('vl-ev450-stops',${nxt})`});
+  }
+
+  ['EV450','ACE','Bolero','TATA 407','14FT'].forEach(vt=>{
+    const vtRts=routes.filter(r=>r.vehicle===vt);
+    if(vtRts.length<2) return;
+    const avg=vtRts.reduce((s,r)=>s+(r.totalWeight*(1+s.cratePercent/100))/(caps[vt]||3500)*100,0)/vtRts.length;
+    if(avg<50){
+      const key=vt.toLowerCase().replace(/[\s\/]/g,'');
+      const el=document.getElementById(`vl-${key}-stops`);
+      const cur=el?parseInt(el.value)||15:15;
+      const nxt=Math.min(cur+5,80);
+      ins.push({type:'info',
+        msg:`${vt} avg ${Math.round(avg)}% load (${vtRts.length} vehicles)`,
+        hint:'Vehicles running well below capacity',
+        label:`Raise stop limit → ${nxt}`,
+        act:`quickSet('vl-${key}-stops',${nxt})`});
+    }
+  });
+
+  if(!ins.length){
+    ins.push({type:'success',msg:'All routes look good',hint:'No conflicts, late arrivals or overtime',label:null,act:null});
+  }
+  return ins;
+}
+
+function renderInsights(){
+  const el=document.getElementById('insights-panel');
+  if(!el||!generatedRoutes.length){if(el)el.style.display='none';return;}
+  const s=getSettings();
+  const ins=generateInsights(generatedRoutes,s);
+  const issues=ins.filter(i=>i.type==='error'||i.type==='warning').length;
+  const dot={error:'#ef4444',warning:'#f59e0b',info:'#3b82f6',success:'#22c55e'};
+  const tx={error:'#991b1b',warning:'#92400e',info:'#1e40af',success:'#166534'};
+  const btnBg={error:'#fef2f2',warning:'#fffbeb',info:'#eff6ff',success:'#f0fdf4'};
+  const btnBo={error:'#fecaca',warning:'#fde68a',info:'#bfdbfe',success:'#bbf7d0'};
+  el.style.display='block';
+  el.innerHTML=`<div style="background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);padding:12px 18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:.04em">INSIGHTS</span>
+      ${issues?`<span style="font-size:11px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:999px;padding:1px 9px;font-weight:600">${issues} issue${issues>1?'s':''}</span>`:''}
+    </div>
+    ${ins.map((i,idx)=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;${idx<ins.length-1?'border-bottom:1px solid var(--gray-border)':''}">
+      <span style="width:7px;height:7px;min-width:7px;border-radius:50%;background:${dot[i.type]||'#94a3b8'}"></span>
+      <div style="flex:1;min-width:0;line-height:1.4">
+        <span style="font-size:12px;font-weight:600;color:${tx[i.type]||'#334155'}">${i.msg}</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:5px">${i.hint}</span>
+      </div>
+      ${i.label?`<button onclick="${i.act}" style="font-size:11px;padding:3px 10px;white-space:nowrap;border:1px solid ${btnBo[i.type]};background:${btnBg[i.type]};color:${tx[i.type]};border-radius:6px;cursor:pointer">${i.label} →</button>`:''}
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderRouteCards(){
+  const s=getSettings();
+  const fv=document.getElementById('filter-vehicle').value;
+  const fz=document.getElementById('filter-zone').value;
+  const fc=document.getElementById('filter-conflict').checked;
+  let filtered=generatedRoutes;
+  if(fv) filtered=filtered.filter(r=>r.vehicle===fv);
+  if(fz) filtered=filtered.filter(r=>r.zones.includes(fz)||fz==='Outstation'&&r.isOutstation);
+  if(fc) filtered=filtered.filter(r=>r.hasConflict||r.hasLate);
+  const grid=document.getElementById('routes-grid');
+  grid.innerHTML='';
+  filtered.forEach((r)=>{
+    const routeNum=generatedRoutes.indexOf(r)+1;
+    const div=document.createElement('div');
+    div.className='route-card';
+    div.onclick=()=>openRouteModal(r,routeNum-1);
+    const zoneStr=r.zones.join(', ');
+    const hours=Math.floor(r.totalRouteMins/60),mins=r.totalRouteMins%60;
+    const isOvertime=r.totalRouteMins>s.maxHours*60;
+    const durationStyle=isOvertime?'color:var(--amber);font-weight:600':'';
+    div.innerHTML=`
+      <div class="route-card-header">
+        <div class="route-number">Route ${routeNum}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${r.isOutstation?'<span class="badge badge-outstation">Outstation</span>':''}
+          ${isOvertime?'<span class="badge" style="background:#fef3c7;color:#92400e">⚡OT</span>':''}
+          <span class="vehicle-badge ${vehicleBadgeClass(r.vehicle)}">${r.vehicle}</span>
+        </div>
+      </div>
+      <div class="route-card-body">
+        <div class="route-meta">
+          <div class="route-meta-item"><div class="route-meta-label">Dispatch</div><div class="route-meta-value">${r.dispatchTime}</div></div>
+          <div class="route-meta-item"><div class="route-meta-label">Stops</div><div class="route-meta-value">${r.stops.length}</div></div>
+          <div class="route-meta-item"><div class="route-meta-label">Total weight</div><div class="route-meta-value">${r.totalWeight} kg</div></div>
+          <div class="route-meta-item"><div class="route-meta-label">Distance</div><div class="route-meta-value">${r.totalDistKm} km</div></div>
+          <div class="route-meta-item"><div class="route-meta-label">Duration</div><div class="route-meta-value" style="${durationStyle}">${hours}h ${mins}m${isOvertime?' ⚡':''}</div></div>
+          <div class="route-meta-item"><div class="route-meta-label">Return</div><div class="route-meta-value">${r.returnTime}</div></div>
+        </div>
+        ${(()=>{
+          const cap=VEHICLE_CAPACITY[r.vehicle]||3500;
+          const crateWt=Math.round(r.totalWeight*(s.cratePercent/100));
+          const totalLoad=r.totalWeight+crateWt;
+          const pct=Math.round(totalLoad/cap*100);
+          const col=pct>=90?'#ef4444':pct>=70?'#f59e0b':'#22c55e';
+          return `<div style="margin:8px 0 6px">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
+              <span style="color:var(--text-muted)">Load utilisation (incl. ${s.cratePercent}% crates)</span>
+              <span style="font-weight:700;color:${col}">${pct}%</span>
+            </div>
+            <div style="height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:3px"></div>
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Orders ${r.totalWeight} kg + Crates ${crateWt} kg = ${totalLoad} kg / ${cap} kg</div>
+          </div>`;
+        })()}
+        <div class="route-stops-preview">
+          ${r.zones.map(z=>`<span class="badge badge-ncr" style="margin-right:3px">${z}</span>`).join('')}
+          ${r.hasConflict?'<span class="warning-badge">⚠ Scheduling conflict</span>':''}
+          ${r.hasLate?'<span class="warning-badge" style="background:#fee2e2;color:#991b1b">⚠ Late arrivals</span>':''}
+          <div style="margin-top:4px">${r.stops.slice(0,2).map(s=>s.name).join(' → ')}${r.stops.length>2?` → +${r.stops.length-2} more`:''}</div>
+        </div>
+      </div>`;
+    grid.appendChild(div);
+  });
+  if(filtered.length===0) grid.innerHTML='<div style="color:var(--text-muted);font-size:13px;padding:20px">No routes match current filters.</div>';
+
+  // ── vehicle summary bar ──
+  const bar=document.getElementById('vehicle-summary-bar');
+  const ORDER=['EV450','ACE','Bolero','TATA 407','14FT'];
+  const counts={};
+  filtered.forEach(r=>{ counts[r.vehicle]=(counts[r.vehicle]||0)+1; });
+  const present=ORDER.filter(v=>counts[v]);
+  if(present.length===0){ bar.style.display='none'; return; }
+  bar.style.display='flex';
+  const totalShown=filtered.length;
+  const totalAll=generatedRoutes.length;
+  const filterActive=totalShown<totalAll;
+  bar.innerHTML=
+    `<span style="color:var(--text-muted);font-weight:600;margin-right:4px">${filterActive?`Showing ${totalShown} of ${totalAll} routes —`:'Vehicles required —'}</span>`+
+    present.map(v=>
+      `<span style="display:inline-flex;align-items:center;gap:5px">
+         <span class="vehicle-badge ${vehicleBadgeClass(v)}">${v}</span>
+         <span style="font-weight:700;font-size:13px">×${counts[v]}</span>
+       </span>`
+    ).join('<span style="color:var(--gray-border);margin:0 2px">|</span>');
+}
+
+// ═══════════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════════
+function openRouteModal(route,idx){
+  window._openRoute=route;
+  currentRouteIdx=idx;
+  const settings=getSettings();
+  document.getElementById('modal-title').textContent=`Route ${idx+1} — ${route.vehicle}${route.isOutstation?' (Outstation)':''}`;
+  const hours=Math.floor(route.totalRouteMins/60),mins=route.totalRouteMins%60;
+  const isOvertime=route.totalRouteMins>settings.maxHours*60;
+  const durationStyle=isOvertime?'color:var(--amber)':'';
+  const overtimeTag=isOvertime?` <span style="font-size:11px;background:var(--amber-light);color:var(--amber);padding:1px 5px;border-radius:3px">⚡ Overtime</span>`:'';
+  document.getElementById('modal-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Dispatch time</div><div class="stat-value">${route.dispatchTime}</div></div>
+    <div class="stat"><div class="stat-label">Total distance</div><div class="stat-value">${route.totalDistKm} km<div style="font-size:10px;color:var(--text-muted);margin-top:1px">road estimate</div></div></div>
+    <div class="stat"><div class="stat-label">Total weight</div><div class="stat-value">${route.totalWeight} kg</div></div>
+    <div class="stat"><div class="stat-label">Est. duration</div><div class="stat-value" style="${durationStyle}">${hours}h ${mins}m${overtimeTag}</div></div>`;
+  // Stop list
+  const ul=document.getElementById('modal-stops');
+  ul.innerHTML='';
+  let cumW=route.stops.reduce((a,o)=>a+o.weight,0);
+  const speed=route.isOutstation?settings.highwaySpeed:settings.citySpeed;
+  // Add warehouse as origin for distance calc
+  const prevPoints=[{lat:WH.lat,lon:WH.lon,name:'Warehouse'},...route.stops];
+  for(let si=0;si<route.stops.length;si++){
+    const s=route.stops[si];
+    cumW-=s.weight;
+    const prev=prevPoints[si];
+    const _stopRf=(s.zone||getZone(s.lat,s.lon))==='Outstation'?ROAD_HWY:ROAD_CITY;
+    const distFromPrev=Math.round(haversine(prev.lat,prev.lon,s.lat,s.lon)*_stopRf*100)/100;
+    const distFromWH=(Math.round(haversine(WH.lat,WH.lon,s.lat,s.lon)*_stopRf*100)/100).toFixed(2);
+    const fromLabel=si===0?`${distFromPrev.toFixed(2)} km from warehouse`:`${distFromPrev.toFixed(2)} km from stop ${si}`;
+    const travelMins=Math.round((distFromPrev/speed)*60);
+    const departMins=s.arrivalMins+settings.unloadingMin;
+    const departTime=minutesToTime(departMins);
+    // Connector arrow between stops (shows travel time AFTER previous stop's unloading)
+    if(si>0){
+      const conn=document.createElement('div');
+      conn.style.cssText='display:flex;align-items:center;gap:8px;padding:2px 0 2px 11px;color:var(--text-muted)';
+      conn.innerHTML=`<div style="width:1px;height:20px;background:var(--gray-border);margin-left:10px;flex-shrink:0"></div><span style="font-size:11px;color:var(--text-muted)">↓ ${distFromPrev.toFixed(2)} km · ~${travelMins} min travel (after ${settings.unloadingMin} min unloading at stop ${si})</span>`;
+      ul.appendChild(conn);
+    }
+    const li=document.createElement('li');
+    li.className='stop-item';
+    li.innerHTML=`
+      <div class="stop-num">${s.stopNum}</div>
+      <div style="flex:1">
+        <div class="stop-name">${s.name}</div>
+        <div class="stop-meta">
+          <span>ETA: ${s.eta==='As per customer'?'Flexible':s.eta.replace(':00 ',' ')}</span>
+          <span style="color:var(--green);font-weight:600">▶ Arrive: ${s.arrivalTime}</span>
+          <span style="color:#1d4ed8;font-weight:500">◀ Depart: ${departTime}</span>
+          <span>${(+s.weight).toFixed(2)} kg</span>
+          <span style="color:var(--text-muted)">📍 ${fromLabel} · ${distFromWH} km from WH</span>
+          <span>Load left: ${cumW.toFixed(2)} kg</span>
+          ${s.conflict?'<span style="color:var(--red);font-weight:600">⚠ No-entry conflict</span>':''}
+          ${s.late&&!s.conflict?'<span style="color:var(--amber);font-weight:600">⚠ Late arrival</span>':''}
+        </div>
+      </div>`;
+    ul.appendChild(li);
+  }
+  document.getElementById('route-modal').classList.add('open');
+  // Init map after modal opens
+  setTimeout(()=>initRouteMap(route),100);
+}
+
+function initRouteMap(route){
+  if(!route.stops||route.stops.length===0) return;
+  const el=document.getElementById('route-map');
+  if(mapInstance){mapInstance.remove();mapInstance=null;}
+  mapInstance=L.map(el).setView([route.stops[0].lat,route.stops[0].lon],11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(mapInstance);
+  // Warehouse marker
+  L.circleMarker([WH.lat,WH.lon],{radius:10,fillColor:'#1a7a4a',color:'#fff',weight:2,fillOpacity:1}).addTo(mapInstance).bindPopup('🏭 Warehouse');
+  // Route line
+  const latlngs=[[WH.lat,WH.lon],...route.stops.map(s=>[s.lat,s.lon]),[WH.lat,WH.lon]];
+  L.polyline(latlngs,{color:'#2d9e62',weight:3,opacity:.7,dashArray:route.isOutstation?'6,4':null}).addTo(mapInstance);
+  // Stop markers — offset duplicates so stacked stops are all visible
+  const coordCount={};
+  route.stops.forEach((s,i)=>{
+    const key=`${s.lat.toFixed(5)},${s.lon.toFixed(5)}`;
+    coordCount[key]=(coordCount[key]||0)+1;
+  });
+  const coordIdx={};
+  route.stops.forEach((s,i)=>{
+    const key=`${s.lat.toFixed(5)},${s.lon.toFixed(5)}`;
+    coordIdx[key]=(coordIdx[key]||0);
+    const total=coordCount[key];
+    const idx=coordIdx[key]++;
+    // Spiral offset: evenly space duplicates in a small circle (~15m radius)
+    const angle=(2*Math.PI*idx)/Math.max(total,1);
+    const r=total>1?0.00015:0;
+    const lat=s.lat+r*Math.cos(angle);
+    const lon=s.lon+r*Math.sin(angle);
+    const color=s.conflict?'#dc2626':s.late?'#d97706':'#1d4ed8';
+    const icon=L.divIcon({className:'',html:`<div style="background:${color};color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${i+1}</div>`,iconSize:[22,22],iconAnchor:[11,11]});
+    L.marker([lat,lon],{icon}).addTo(mapInstance).bindPopup(`<b>${i+1}. ${s.name}</b><br>Arrive: ${s.arrivalTime}<br>Weight: ${(+s.weight).toFixed(2)}kg`);
+  });
+  const bounds=L.latLngBounds(latlngs);
+  mapInstance.invalidateSize();
+  mapInstance.fitBounds(bounds,{padding:[30,30]});
+}
+
+function closeModal(){
+  document.getElementById('route-modal').classList.remove('open');
+  if(mapInstance){mapInstance.remove();mapInstance=null;}
+}
+
+function copyRouteForDriver(){
+  const rt=window._openRoute;
+  if(!rt) return;
+  const routeNum=generatedRoutes.indexOf(rt)+1||1;
+  let text=`🌿 URBAN HARVEST — ROUTE ${routeNum}\n`;
+  text+=`Vehicle: ${rt.vehicle} | Dispatch: ${rt.dispatchTime}\n`;
+  text+=`Total: ${rt.stops.length} stops | ${rt.totalWeight}kg | ${rt.totalDistKm}km\n\n`;
+  text+=`📍 DROP SEQUENCE:\n`;
+  rt.stops.forEach((s,i)=>{
+    const mapsLink=`https://www.google.com/maps/?q=${s.lat},${s.lon}`;
+    text+=`${i+1}. ${s.name}\n   ETA: ${s.eta==='As per customer'?'Flexible':s.eta} | Arrive by: ${s.arrivalTime} | ${(+s.weight).toFixed(2)}kg\n   📍 ${mapsLink}\n`;
+  });
+  text+=`\n🏭 Return to warehouse by: ${rt.returnTime}`;
+  navigator.clipboard.writeText(text).then(()=>showToast('Copied to clipboard!')).catch(()=>{});
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ═══════════════════════════════════════════════
+//  OPERATIONS TABLE
+// ═══════════════════════════════════════════════
+function populateOpsTable(){
+  const tbody=document.getElementById('ops-body');
+  tbody.innerHTML='';
+  document.getElementById('ops-empty').style.display='none';
+  document.getElementById('ops-table-wrap').style.display='block';
+  generatedRoutes.forEach((r,i)=>{
+    const tr=document.createElement('tr');
+    tr.id=`ops-main-row-${i}`;
+    tr.innerHTML=`
+      <td style="font-weight:500">Route ${i+1}<br><span style="font-size:10px;color:var(--text-muted)">${r.stops.length} stops · ${r.totalWeight}kg</span></td>
+      <td><span class="vehicle-badge ${vehicleBadgeClass(r.vehicle)}">${r.vehicle}</span></td>
+      <td>
+        <select id="ops-avtype-${i}" style="font-size:12px;padding:4px 6px;border:1px solid var(--gray-border);border-radius:4px">
+          <option value="">Same as planned</option>
+          <option>EV450</option><option>ACE</option><option>Bolero</option>
+          <option>TATA 407</option><option>14FT</option><option>Other</option>
+        </select>
+      </td>
+      <td><input type="number" min="1" max="9" value="1" id="ops-numv-${i}" style="width:60px;text-align:center" oninput="updateExtraVehicleRows(${i},+this.value)"/></td>
+      <td><input type="text" placeholder="e.g. DL01AB1234" id="ops-vno-${i}-1"/></td>
+      <td><input type="text" placeholder="Driver name" id="ops-dname-${i}-1"/></td>
+      <td><input type="tel" placeholder="10-digit mobile" maxlength="10" id="ops-dnum-${i}-1" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)"/></td>
+      <td><input type="text" placeholder="Partner name" id="ops-tp-${i}-1"/></td>
+      <td style="font-weight:500;color:var(--green)">${r.dispatchTime}</td>
+      <td><input type="time" id="ops-adispatch-${i}"/></td>
+      <td><input type="time" id="ops-return-${i}"/></td>
+      <td><input type="text" placeholder="e.g. 2x ACE used, extra stop" id="ops-notes-${i}" style="min-width:160px"/></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateExtraVehicleRows(routeIdx,count){
+  document.querySelectorAll(`[data-extra-v="${routeIdx}"]`).forEach(r=>r.remove());
+  const anchor=document.getElementById(`ops-main-row-${routeIdx}`);
+  if(!anchor) return;
+  for(let v=2;v<=Math.min(count,9);v++){
+    const tr=document.createElement('tr');
+    tr.setAttribute('data-extra-v',routeIdx);
+    tr.style.background='var(--gray-light)';
+    tr.innerHTML=`
+      <td colspan="3" style="font-size:11px;color:var(--text-muted);padding-left:20px;border-right:none">Vehicle ${v}</td>
+      <td style="border-left:none"></td>
+      <td><input type="text" placeholder="e.g. DL01AB1234" id="ops-vno-${routeIdx}-${v}"/></td>
+      <td><input type="text" placeholder="Driver name" id="ops-dname-${routeIdx}-${v}"/></td>
+      <td><input type="tel" placeholder="10-digit mobile" maxlength="10" id="ops-dnum-${routeIdx}-${v}" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,10)"/></td>
+      <td><input type="text" placeholder="Partner name" id="ops-tp-${routeIdx}-${v}"/></td>
+      <td colspan="4"></td>`;
+    // Insert after last extra row (or after main row)
+    const allExtra=document.querySelectorAll(`[data-extra-v="${routeIdx}"]`);
+    const insertAfter=allExtra.length>0?allExtra[allExtra.length-1]:anchor;
+    insertAfter.insertAdjacentElement('afterend',tr);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  EXCEL EXPORT
+// ═══════════════════════════════════════════════
+function exportExcel(){
+  if(!generatedRoutes.length){alert('No routes to export');return;}
+  const s=getSettings();
+  const today=new Date();
+  const dateStr=today.toLocaleDateString('en-GB'); // DD/MM/YYYY
+  const fileDateStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const rows=[['Date','Warehouse','Route','Vehicle','Stop #','Outlet Name','Zone','Weight (kg)','ETA','Est. Arrival','Est. Depart','Dist from prev (km)','Total Route Weight','Total Distance (km)','Dispatch Time','Return Time','No-Entry Conflict']];
+  generatedRoutes.forEach((r,i)=>{
+    r.stops.forEach((stop,j)=>{
+      const departTime=minutesToTime(stop.arrivalMins+s.unloadingMin);
+      rows.push([
+        dateStr,'UH-Rai',`Route ${i+1}`,r.vehicle,j+1,stop.name,
+        stop.zone||getZone(stop.lat,stop.lon),stop.weight,stop.eta,stop.arrivalTime,departTime,stop.dist||'',
+        j===0?r.totalWeight:'',j===0?r.totalDistKm:'',
+        j===0?r.dispatchTime:'',j===0?r.returnTime:'',
+        stop.conflict?'YES':''
+      ]);
+    });
+    // No blank row between routes — continuous data for easier Excel filtering
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:12},{wch:12},{wch:10},{wch:10},{wch:7},{wch:45},{wch:12},{wch:12},{wch:14},{wch:12},{wch:12},{wch:16},{wch:18},{wch:18},{wch:14},{wch:12},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,ws,'Routes');
+  XLSX.writeFile(wb,`UrbanHarvest_Routes_${fileDateStr}.xlsx`);
+  showToast('Excel exported!');
+}
+
+function exportOpsExcel(){
+  if(!generatedRoutes.length){alert('No operations data');return;}
+  const today=new Date();
+  const dateStr=today.toLocaleDateString('en-GB'); // DD/MM/YYYY
+  const fileDateStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const rows=[['Date','Route','Stops','Weight (kg)','Planned Vehicle','Actual Vehicle Type','No. of Vehicles','Vehicle No.','Driver Name','Driver No.','Transport Partner','Planned Dispatch','Actual Dispatch','Return Time','Notes']];
+  generatedRoutes.forEach((r,i)=>{
+    const avtypeEl=document.getElementById(`ops-avtype-${i}`);
+    const avtypeVal=avtypeEl?.value||'';
+    rows.push([
+      dateStr,`Route ${i+1}`,r.stops.length,r.totalWeight,r.vehicle,
+      avtypeVal||r.vehicle,
+      parseInt(document.getElementById(`ops-numv-${i}`)?.value||'1'),
+      document.getElementById(`ops-vno-${i}-1`)?.value||'',
+      document.getElementById(`ops-dname-${i}-1`)?.value||'',
+      document.getElementById(`ops-dnum-${i}-1`)?.value||'',
+      document.getElementById(`ops-tp-${i}-1`)?.value||'',
+      r.dispatchTime,
+      document.getElementById(`ops-adispatch-${i}`)?.value||'',
+      document.getElementById(`ops-return-${i}`)?.value||'',
+      document.getElementById(`ops-notes-${i}`)?.value||''
+    ]);
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:12},{wch:10},{wch:7},{wch:12},{wch:16},{wch:18},{wch:14},{wch:16},{wch:18},{wch:16},{wch:18},{wch:16},{wch:16},{wch:14},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,ws,'Operations');
+  XLSX.writeFile(wb,`UrbanHarvest_Ops_${fileDateStr}.xlsx`);
+  showToast('Ops log exported!');
+}
+
+// ═══════════════════════════════════════════════
+//  SETTINGS — APPLY & REGENERATE
+// ═══════════════════════════════════════════════
+function applySettingsAndRecalculate(){
+  if(!parsedOrders||parsedOrders.length===0){
+    alert('No orders uploaded yet. Please upload a CSV file on the Upload Orders tab first.');
+    return;
+  }
+  saveSettings();
+  generateRoutes();
+  showToast('Routes regenerated with updated settings!');
+}
+
+// ═══════════════════════════════════════════════
+//  NAV
+// ═══════════════════════════════════════════════
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  const tabEl=document.getElementById('nav-tab-'+id);
+  if(tabEl) tabEl.classList.add('active');
+  if(id==='routes') renderRoutesPage();
+  if(id==='history') loadHistory();
+  if(id==='settings'&&currentUserRole==='admin') loadTeamMembers();
+}
+
+// Close modal on overlay click
+document.getElementById('route-modal').addEventListener('click',function(e){
+  if(e.target===this) closeModal();
+});
+
+// ═══════════════════════════════════════════════
+//  SUPABASE — AUTH & DATABASE
+// ═══════════════════════════════════════════════
+const SUPABASE_URL='https://jkaeogjqcelwqnnvnddy.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImprYWVvZ2pxY2Vsd3FubnZuZGR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMTc5ODgsImV4cCI6MjA5NTY5Mzk4OH0.i4ZiApq3iSAi66d73CXXWcDkT6GxOcXxr9Wz9hYZOl8';
+const{createClient}=supabase;
+const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+let currentUser=null,currentUserRole=null;
+
+async function initApp(){
+  const{data:{session}}=await sb.auth.getSession();
+  if(session) await onSignIn(session.user);
+  else document.getElementById('login-screen').style.display='flex';
+  sb.auth.onAuthStateChange(async(event,session)=>{
+    if(event==='SIGNED_IN'&&session) await onSignIn(session.user);
+    else if(event==='SIGNED_OUT') onSignOut();
+  });
+}
+
+async function onSignIn(user){
+  currentUser=user;
+  // Try by ID first, then by email as fallback
+  let{data,error}=await sb.from('user_profiles').select('role,full_name').eq('id',user.id).maybeSingle();
+  if(!data){
+    const res=await sb.from('user_profiles').select('role,full_name').eq('email',user.email).maybeSingle();
+    data=res.data;
+  }
+  currentUserRole=data?.role||'viewer';
+  const label=data?.full_name||user.email;
+  const roleLabel={admin:'Admin',editor:'Editor',viewer:'Viewer'}[currentUserRole]||currentUserRole;
+  document.getElementById('nav-user-info').textContent=`${label} · ${roleLabel}`;
+  document.getElementById('login-screen').style.display='none';
+  applyRoleUI();
+  loadSettings();
+}
+
+function onSignOut(){
+  currentUser=null;currentUserRole=null;
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-error').style.display='none';
+}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const password=document.getElementById('login-password').value;
+  const errEl=document.getElementById('login-error');
+  const btn=document.getElementById('login-btn');
+  if(!email||!password){errEl.textContent='Please enter your email and password';errEl.style.display='block';return;}
+  btn.textContent='Signing in…';btn.disabled=true;
+  const{error}=await sb.auth.signInWithPassword({email,password});
+  btn.textContent='Sign In';btn.disabled=false;
+  if(error){errEl.textContent=error.message;errEl.style.display='block';}
+  else errEl.style.display='none';
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+}
+
+function applyRoleUI(){
+  const isAdmin=currentUserRole==='admin';
+  const isEditor=currentUserRole==='editor'||isAdmin;
+  // Upload controls
+  document.getElementById('upload-zone').style.pointerEvents=isEditor?'':'none';
+  document.getElementById('upload-zone').style.opacity=isEditor?'1':'0.5';
+  document.getElementById('file-input').disabled=!isEditor;
+  const genBtn=document.getElementById('gen-btn');
+  if(genBtn) genBtn.style.display=isEditor?'':'none';
+  // Save button
+  const saveBtn=document.getElementById('save-routes-btn');
+  if(saveBtn) saveBtn.style.display=isEditor?'':'none';
+  // Settings tab
+  const settingsTab=document.getElementById('nav-tab-settings');
+  if(settingsTab) settingsTab.style.display=isAdmin?'':'none';
+  // Team management section
+  const teamSection=document.getElementById('team-management-section');
+  if(teamSection) teamSection.style.display=isAdmin?'block':'none';
+  if(isAdmin) loadTeamMembers();
+}
+
+// ─── Save Routes to Database ───────────────────
+async function saveRoutesToDB(){
+  if(!currentUser||!generatedRoutes||generatedRoutes.length===0){showToast('No routes to save');return;}
+  const btn=document.getElementById('save-routes-btn');
+  const orig=btn.textContent;
+  btn.textContent='Saving…';btn.disabled=true;
+  try{
+    const today=new Date().toISOString().split('T')[0];
+    let totalStops=0,totalWeight=0;
+    for(let i=0;i<generatedRoutes.length;i++){
+      const r=generatedRoutes[i];
+      const{data:route,error:rErr}=await sb.from('routes').insert({
+        date:today,route_number:i+1,vehicle:r.vehicle,
+        dispatch_time:r.dispatchTime,return_time:r.returnTime,
+        total_stops:r.stops.length,total_weight_kg:parseFloat(r.totalWeight)||0,
+        total_dist_km:parseFloat(r.totalDistKm)||0,
+        is_outstation:r.isOutstation||false,zones:r.zones||[],
+        created_by:currentUser.id
+      }).select().single();
+      if(rErr){console.error(rErr);continue;}
+      totalStops+=r.stops.length;
+      totalWeight+=parseFloat(r.totalWeight)||0;
+      const stopsData=r.stops.map((s,j)=>({
+        route_id:route.id,stop_number:j+1,outlet_name:s.name,
+        eta:s.eta||'',arrival_time:s.arrivalTime||'',
+        weight_kg:parseFloat(s.weight)||0,zone:s.zone||getZone(s.lat,s.lon),
+        lat:s.lat,lon:s.lon,is_late:s.late||false,is_conflict:s.conflict||false
+      }));
+      if(stopsData.length) await sb.from('stops').insert(stopsData);
+    }
+    await sb.from('saved_files').insert({
+      date:today,filename:`routes-${today}.xlsx`,file_type:'routes_summary',
+      route_count:generatedRoutes.length,total_stops:totalStops,
+      total_weight_kg:Math.round(totalWeight*100)/100,created_by:currentUser.id
+    });
+    showToast('Routes saved to history!');
+    btn.textContent='✓ Saved';
+    setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},3000);
+  }catch(e){
+    console.error(e);showToast('Error saving — check console');
+    btn.textContent=orig;btn.disabled=false;
+  }
+}
+
+// ─── History ───────────────────────────────────
+async function loadHistory(){
+  const el=document.getElementById('history-list');
+  el.innerHTML='<div style="padding:20px;color:var(--text-muted);font-size:13px">Loading…</div>';
+  const{data:files,error}=await sb.from('saved_files').select('*').order('date',{ascending:false}).limit(60);
+  if(error||!files||files.length===0){
+    el.innerHTML='<div class="card" style="text-align:center;padding:40px;color:var(--text-muted)"><div style="font-size:32px;margin-bottom:12px">🗂️</div><div style="font-size:14px;font-weight:500">No history yet</div><div style="font-size:12px;margin-top:6px">Generate routes and click "Save to History" to store them here</div></div>';
+    return;
+  }
+  el.innerHTML=files.map(f=>{
+    const d=new Date(f.date+'T00:00:00');
+    const dStr=d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+    return`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleHistoryDetail('${f.id}','${f.date}',this)">
+        <div>
+          <div style="font-weight:600;font-size:14px">${dStr}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${f.route_count||'—'} routes · ${f.total_stops||'—'} stops · ${f.total_weight_kg?Math.round(f.total_weight_kg)+'kg total':'—'}</div>
+        </div>
+        <div id="hist-chevron-${f.id}" style="font-size:12px;color:var(--text-muted);transition:transform .2s">▼</div>
+      </div>
+      <div id="history-detail-${f.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border)">
+        <div style="color:var(--text-muted);font-size:12px">Loading…</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleHistoryDetail(fileId,date,headerEl){
+  const el=document.getElementById(`history-detail-${fileId}`);
+  const chevron=document.getElementById(`hist-chevron-${fileId}`);
+  if(el.style.display==='block'){
+    el.style.display='none';chevron.style.transform='';return;
+  }
+  el.style.display='block';chevron.style.transform='rotate(180deg)';
+  el.innerHTML='<div style="color:var(--text-muted);font-size:12px">Loading routes…</div>';
+  const{data:routes}=await sb.from('routes').select('*').eq('date',date).order('route_number');
+  if(!routes||routes.length===0){el.innerHTML='<div style="color:var(--text-muted);font-size:12px">No route data found</div>';return;}
+  el.innerHTML=`<div class="scroll-x"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--gray-light)">
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Route</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Vehicle</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Dispatch</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Stops</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Weight (kg)</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Distance (km)</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Return</th>
+      <th style="padding:6px 8px;text-align:left;border:1px solid var(--gray-border)">Zones</th>
+    </tr></thead>
+    <tbody>${routes.map(r=>`<tr>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border);font-weight:600">Route ${r.route_number}${r.is_outstation?' 🚛':''}</td>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border)">${r.vehicle||'—'}</td>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border)">${r.dispatch_time||'—'}</td>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border)">${r.total_stops||0}</td>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border)">${r.total_weight_kg||0}</td>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border)">${r.total_dist_km||0}</td>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border)">${r.return_time||'—'}</td>
+      <td style="padding:6px 8px;border:1px solid var(--gray-border)">${(r.zones||[]).join(', ')||'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ─── Team Management (admin only) ──────────────
+async function loadTeamMembers(){
+  if(currentUserRole!=='admin') return;
+  const{data:members,error}=await sb.from('user_profiles').select('*').order('created_at');
+  const el=document.getElementById('team-list');
+  if(error||!members||members.length===0){
+    el.innerHTML='<div style="color:var(--text-muted);font-size:13px">No team members found. Create users in your Supabase dashboard first.</div>';
+    return;
+  }
+  const roleColor={admin:'var(--green)',editor:'var(--blue)',viewer:'var(--gray)'};
+  el.innerHTML=members.map(m=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-border)">
+      <div style="width:32px;height:32px;border-radius:50%;background:${roleColor[m.role]||'var(--gray)'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">${(m.full_name||m.email||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.full_name||m.email}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${m.email}</div>
+      </div>
+      <select onchange="updateUserRole('${m.id}',this.value)" style="padding:5px 8px;border:1px solid var(--gray-border);border-radius:6px;font-size:12px" ${m.id===currentUser?.id?'disabled title="Cannot change your own role"':''}>
+        <option value="viewer" ${m.role==='viewer'?'selected':''}>Viewer</option>
+        <option value="editor" ${m.role==='editor'?'selected':''}>Editor</option>
+        <option value="admin" ${m.role==='admin'?'selected':''}>Admin</option>
+      </select>
+    </div>
+  `).join('');
+}
+
+async function updateUserRole(userId,newRole){
+  const{error}=await sb.from('user_profiles').update({role:newRole}).eq('id',userId);
+  if(error){showToast('Error updating role — try again');console.error(error);return;}
+  showToast(`Role updated to ${newRole}`);
+  loadTeamMembers();
+}
+
+// ═══════════════════════════════════════════════
+//  SETTINGS PERSISTENCE
+// ═══════════════════════════════════════════════
+function saveSettings(){
+  const numIds=['s-loading','s-unloading','s-city-speed','s-highway-speed','s-max-dist','s-max-hours','s-overtime-hours','s-outstation-km','s-crate-pct'];
+  const data={noEntry:noEntryEnabled};
+  numIds.forEach(id=>{const el=document.getElementById(id);if(el)data[id]=el.value;});
+  const vkeys=['ev450','ace','bolero','tata407','14ft'];
+  vkeys.forEach(k=>{
+    ['avail','stops-en','dist-en'].forEach(f=>{const el=document.getElementById(`vl-${k}-${f}`);if(el)data[`vl-${k}-${f}`]=el.checked;});
+    ['stops','dist'].forEach(f=>{const el=document.getElementById(`vl-${k}-${f}`);if(el)data[`vl-${k}-${f}`]=el.value;});
+  });
+  ['all-stops-en','all-dist-en'].forEach(f=>{const el=document.getElementById(`vl-${f}`);if(el)data[`vl-${f}`]=el.checked;});
+  try{localStorage.setItem('uh-settings',JSON.stringify(data));}catch(e){}
+}
+function loadSettings(){
+  let data;
+  try{data=JSON.parse(localStorage.getItem('uh-settings')||'null');}catch(e){return;}
+  if(!data) return;
+  const numIds=['s-loading','s-unloading','s-city-speed','s-highway-speed','s-max-dist','s-max-hours','s-overtime-hours','s-outstation-km','s-crate-pct'];
+  numIds.forEach(id=>{const el=document.getElementById(id);if(el&&data[id]!=null)el.value=data[id];});
+  if(data.noEntry!=null&&data.noEntry!==noEntryEnabled) toggleNoEntry();
+  const vkeys=['ev450','ace','bolero','tata407','14ft'];
+  vkeys.forEach(k=>{
+    ['stops','dist'].forEach(f=>{const el=document.getElementById(`vl-${k}-${f}`);if(el&&data[`vl-${k}-${f}`]!=null)el.value=data[`vl-${k}-${f}`];});
+    const availEl=document.getElementById(`vl-${k}-avail`);
+    if(availEl&&data[`vl-${k}-avail`]!=null){availEl.checked=data[`vl-${k}-avail`];vlToggleAvail(availEl,k);}
+    if(data[`vl-${k}-avail`]!==false){
+      ['stops-en','dist-en'].forEach(f=>{const el=document.getElementById(`vl-${k}-${f}`);if(el&&data[`vl-${k}-${f}`]!=null){el.checked=data[`vl-${k}-${f}`];vlToggle(el);}});
+    }
+  });
+  ['all-stops-en','all-dist-en'].forEach(f=>{const el=document.getElementById(`vl-${f}`);if(el&&data[`vl-${f}`]!=null)el.checked=data[`vl-${f}`];});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  initApp();
+  // Save whenever any settings input changes (number fields, etc.)
+  const settingsIds=['s-loading','s-unloading','s-city-speed','s-highway-speed','s-max-dist','s-max-hours','s-overtime-hours','s-outstation-km','s-crate-pct'];
+  settingsIds.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input',saveSettings);
+  });
+  const vlKeys=['ev450','ace','bolero','tata407','14ft'];
+  vlKeys.forEach(k=>{
+    ['stops','dist'].forEach(f=>{
+      const el=document.getElementById(`vl-${k}-${f}`);
+      if(el) el.addEventListener('input',saveSettings);
+    });
+  });
+});
+</script>
+</body>
+</html>
